@@ -48,6 +48,22 @@ def get_cidr_network_info(cidr):
             "total_addresses": network.num_addresses,
             "usable_hosts": max(network.num_addresses - 2, 0)
         }
+    
+    except ValueError:
+        return {"error": "Invalid CIDR network"}
+       
+def get_host_range(cidr):
+    try:
+        network = ipaddress.ip_network(cidr, strict=False)
+        hosts = list(network.hosts())
+
+        return {
+            "network_address": str(network.network_address),
+            "first_usable_host": str(hosts[0]),
+            "last_usable_host": str(hosts[-1]),
+            "broadcast_address": str(network.broadcast_address)
+        }
 
     except ValueError:
         return {"error": "Invalid CIDR network"}
+    print(get_host_range("192.168.1.10/24"))

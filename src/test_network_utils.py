@@ -20,3 +20,11 @@ from core.network_utils import (
     get_cidr_network_info
 )
 print(get_cidr_network_info("192.168.1.10/24"))
+from core.network_utils import (
+    validate_ip,
+    get_ip_version,
+    get_network_info,
+    get_cidr_network_info,
+    get_host_range
+)
+print(get_host_range("192.168.1.10/24"))
