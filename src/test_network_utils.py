@@ -6,7 +6,8 @@ from core.network_utils import (
     get_host_range,
     get_prefix_length,
     get_subnet_info,
-    get_wildcard_mask
+    get_wildcard_mask,
+    calculate_prefix
 )
 
 
@@ -31,3 +32,8 @@ print(get_subnet_info("192.168.1.10/26"))
 
 print(get_wildcard_mask("255.255.255.0"))
 print(get_wildcard_mask("255.255.255.192"))
+
+print(calculate_prefix(100))
+print(calculate_prefix(50))
+print(calculate_prefix(20))
+print(calculate_prefix(10))

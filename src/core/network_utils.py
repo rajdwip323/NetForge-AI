@@ -72,6 +72,7 @@ def get_prefix_length(subnet_mask):
         network = ipaddress.IPv4Network(
             f"0.0.0.0/{subnet_mask}"
         )
+
         return network.prefixlen
 
     except ValueError:
@@ -111,3 +112,16 @@ def get_wildcard_mask(subnet_mask):
 
     except ValueError:
         return "Invalid subnet mask"
+
+
+def calculate_prefix(hosts):
+    required_addresses = hosts + 2
+
+    host_bits = 0
+
+    while (2 ** host_bits) < required_addresses:
+        host_bits += 1
+
+    prefix = 32 - host_bits
+
+    return prefix
