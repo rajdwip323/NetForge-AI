@@ -37,3 +37,20 @@ print(calculate_prefix(100))
 print(calculate_prefix(50))
 print(calculate_prefix(20))
 print(calculate_prefix(10))
+
+from core.network_utils import (
+    validate_ip,
+    get_ip_version,
+    get_network_info,
+    get_cidr_network_info,
+    get_host_range,
+    get_prefix_length,
+    get_subnet_info,
+    get_wildcard_mask,
+    calculate_prefix,
+    calculate_vlsm_networks
+)
+print(calculate_vlsm_networks(
+    "192.168.1.0/24",
+    [100, 50, 20, 10]
+))

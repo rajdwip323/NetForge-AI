@@ -125,3 +125,44 @@ def calculate_prefix(hosts):
     prefix = 32 - host_bits
 
     return prefix
+
+
+def calculate_vlsm_networks(network, host_requirements):
+    """Calculate VLSM subnet allocation based on host requirements."""
+
+    try:
+        base_network = ipaddress.ip_network(network, strict=False)
+
+    except ValueError:
+        return {"error": "Invalid network"}
+
+    if base_network.version != 4:
+        return {"error": "Only IPv4 networks are supported"}
+
+    if not host_requirements:
+        return {"error": "Host requirements cannot be empty"}
+
+    host_requirements = sorted(
+        host_requirements,
+        reverse=True
+    )
+
+    prefixes = []
+
+    for hosts in host_requirements:
+        prefix = calculate_prefix(hosts)
+        prefixes.append(prefix)
+    current_network = base_network.network_address
+
+    subnets = []
+
+    for prefix in prefixes:
+        subnet = ipaddress.ip_network(
+            f"{current_network}/{prefix}",
+            strict=False
+        )
+
+        subnets.append(subnet)
+
+        current_network = subnet.broadcast_address + 1
+    return subnets
