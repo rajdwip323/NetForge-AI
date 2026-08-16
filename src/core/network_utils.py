@@ -131,7 +131,10 @@ def calculate_vlsm_networks(network, host_requirements):
     """Calculate VLSM subnet allocation based on host requirements."""
 
     try:
-        base_network = ipaddress.ip_network(network, strict=False)
+        base_network = ipaddress.ip_network(
+            network,
+            strict=False
+        )
 
     except ValueError:
         return {"error": "Invalid network"}
@@ -152,6 +155,7 @@ def calculate_vlsm_networks(network, host_requirements):
     for hosts in host_requirements:
         prefix = calculate_prefix(hosts)
         prefixes.append(prefix)
+
     current_network = base_network.network_address
 
     subnets = []
@@ -165,4 +169,60 @@ def calculate_vlsm_networks(network, host_requirements):
         subnets.append(subnet)
 
         current_network = subnet.broadcast_address + 1
+
     return subnets
+
+
+def get_vlsm_subnet_info(network, host_requirements):
+    """Return detailed information for each VLSM subnet."""
+
+    subnets = calculate_vlsm_networks(
+        network,
+        host_requirements
+    )
+
+    if isinstance(subnets, dict):
+        return subnets
+
+    detailed_subnets = []
+
+    for subnet in subnets:
+        subnet_info = get_subnet_info(str(subnet))
+        detailed_subnets.append(subnet_info)
+
+    return detailed_subnets
+
+
+def get_professional_vlsm_output(network, host_requirements):
+    """Return professional VLSM allocation information."""
+
+    subnets = calculate_vlsm_networks(
+        network,
+        host_requirements
+    )
+
+    if isinstance(subnets, dict):
+        return subnets
+
+    sorted_requirements = sorted(
+        host_requirements,
+        reverse=True
+    )
+
+    professional_output = []
+
+    for hosts, subnet in zip(sorted_requirements, subnets):
+        subnet_info = get_subnet_info(str(subnet))
+
+        professional_output.append({
+            "host_requirement": hosts,
+            "network_address": subnet_info["network_address"],
+            "broadcast_address": subnet_info["broadcast_address"],
+            "first_usable_host": subnet_info["first_usable_host"],
+            "last_usable_host": subnet_info["last_usable_host"],
+            "prefix_length": subnet_info["prefix_length"],
+            "total_addresses": subnet_info["total_addresses"],
+            "usable_hosts": subnet_info["usable_hosts"]
+        })
+
+    return professional_output
