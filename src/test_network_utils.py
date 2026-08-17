@@ -10,7 +10,8 @@ from core.network_utils import (
     calculate_prefix,
     calculate_vlsm_networks,
     get_vlsm_subnet_info,
-    get_professional_vlsm_output
+    get_professional_vlsm_output,
+    get_vlsm_calculation
 )
 
 
@@ -85,6 +86,12 @@ print(get_vlsm_subnet_info(
 
 
 print(get_professional_vlsm_output(
+    "192.168.1.0/24",
+    [100, 50, 20, 10]
+))
+
+
+print(get_vlsm_calculation(
     "192.168.1.0/24",
     [100, 50, 20, 10]
 ))

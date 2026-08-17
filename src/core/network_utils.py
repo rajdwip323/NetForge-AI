@@ -226,3 +226,24 @@ def get_professional_vlsm_output(network, host_requirements):
         })
 
     return professional_output
+
+
+def get_vlsm_calculation(network, host_requirements):
+    """Return complete VLSM calculation result."""
+
+    professional_output = get_professional_vlsm_output(
+        network,
+        host_requirements
+    )
+
+    if isinstance(professional_output, dict):
+        return professional_output
+
+    return {
+        "network": network,
+        "host_requirements": sorted(
+            host_requirements,
+            reverse=True
+        ),
+        "subnets": professional_output
+    }
