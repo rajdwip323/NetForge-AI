@@ -247,3 +247,28 @@ def get_vlsm_calculation(network, host_requirements):
         ),
         "subnets": professional_output
     }
+
+
+def get_user_vlsm_input():
+    """
+    Get base network and host requirements from the user.
+    """
+
+    network = input("Enter base network (e.g. 192.168.1.0/24): ").strip()
+
+    host_input = input(
+        "Enter host requirements separated by commas (e.g. 100,50,20,10): "
+    ).strip()
+
+    try:
+        host_requirements = [
+            int(host.strip())
+            for host in host_input.split(",")
+        ]
+    except ValueError:
+        return None
+
+    return {
+        "network": network,
+        "host_requirements": host_requirements
+    }
