@@ -422,3 +422,64 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+def validate_vlsm_requirements(network, host_requirements):
+    """
+    Validate whether the requested VLSM subnets
+    can fit inside the given IPv4 network.
+    """
+
+    try:
+        base_network = ipaddress.ip_network(
+            network,
+            strict=False
+        )
+    except ValueError:
+        return {
+            "valid": False,
+            "error": "Invalid network"
+        }
+
+    if base_network.version != 4:
+        return {
+            "valid": False,
+            "error": "Only IPv4 networks are supported"
+        }
+
+    if not host_requirements:
+        return {
+            "valid": False,
+            "error": "Host requirements cannot be empty"
+        }
+
+    for hosts in host_requirements:
+        if not isinstance(hosts, int) or isinstance(hosts, bool):
+            return {
+                "valid": False,
+                "error": "Host requirements must be integers"
+            }
+
+        if hosts <= 0:
+            return {
+                "valid": False,
+                "error": "Host requirements must be greater than 0"
+            }
+
+    required_addresses = 0
+
+    for hosts in host_requirements:
+        prefix = calculate_prefix(hosts)
+        subnet_size = 2 ** (32 - prefix)
+        required_addresses += subnet_size
+
+    if required_addresses > base_network.num_addresses:
+        return {
+            "valid": False,
+            "error": "Insufficient network space for the requested hosts"
+        }
+
+    return {
+        "valid": True,
+        "error": None
+    }
