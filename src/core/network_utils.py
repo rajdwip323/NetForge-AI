@@ -128,48 +128,63 @@ def calculate_prefix(hosts):
 
 
 def calculate_vlsm_networks(network, host_requirements):
-    """Calculate VLSM subnet allocation based on host requirements."""
+    """Calculate VLSM subnet allocation after validating requirements."""
 
-    try:
-        base_network = ipaddress.ip_network(
-            network,
-            strict=False
-        )
+    # Step 1: Validate VLSM requirements
+    validation = validate_vlsm_requirements(
+        network,
+        host_requirements
+    )
 
-    except ValueError:
-        return {"error": "Invalid network"}
+    if not validation["valid"]:
+        return {
+            "error": validation["error"]
+        }
 
-    if base_network.version != 4:
-        return {"error": "Only IPv4 networks are supported"}
+    # Step 2: Convert network into IPv4Network object
+    base_network = ipaddress.ip_network(
+        network,
+        strict=False
+    )
 
-    if not host_requirements:
-        return {"error": "Host requirements cannot be empty"}
-
+    # Step 3: Sort requirements from largest to smallest
     host_requirements = sorted(
         host_requirements,
         reverse=True
     )
 
+    # Step 4: Calculate prefix for each requirement
     prefixes = []
 
     for hosts in host_requirements:
         prefix = calculate_prefix(hosts)
         prefixes.append(prefix)
 
+    # Step 5: Start allocation from base network address
     current_network = base_network.network_address
 
     subnets = []
 
+    # Step 6: Generate each subnet
     for prefix in prefixes:
+
         subnet = ipaddress.ip_network(
             f"{current_network}/{prefix}",
             strict=False
         )
 
+        # Step 7: Boundary check
+        if not subnet.subnet_of(base_network):
+            return {
+                "error": "Generated subnet is outside the base network"
+            }
+
         subnets.append(subnet)
 
+        # Step 8: Move to next available address
         current_network = subnet.broadcast_address + 1
 
+    # Step 9: Return generated subnets
     return subnets
 
 
@@ -274,8 +289,7 @@ def get_user_vlsm_input():
     }
 
 
-import ipaddress
-from core.network_utils import calculate_vlsm_networks
+import ipaddress 
 
 
 def get_positive_integer(prompt):
