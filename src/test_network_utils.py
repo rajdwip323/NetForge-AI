@@ -195,3 +195,24 @@ print(get_vlsm_calculation(
     network,
     host_requirements
 ))
+
+
+# ==========================================
+# SUBNET CALCULATION
+# ==========================================
+
+print(get_subnet_calculation(
+    "192.168.1.0/26"
+))
+
+print(get_subnet_calculation(
+    "192.168.1.10/26"
+))
+
+print(get_subnet_calculation(
+    "10.0.0.0/24"
+))
+
+print(get_subnet_calculation(
+    "192.168.1.999/26"
+))

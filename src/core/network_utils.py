@@ -497,3 +497,29 @@ def validate_vlsm_requirements(network, host_requirements):
         "valid": True,
         "error": None
     }
+
+
+def get_subnet_calculation(cidr):
+    """
+    Return complete IPv4 subnet calculation details.
+    """
+
+    try:
+        network = ipaddress.IPv4Network(cidr, strict=False)
+
+        return {
+            "network_address": str(network.network_address),
+            "broadcast_address": str(network.broadcast_address),
+            "prefix_length": network.prefixlen,
+            "subnet_mask": str(network.netmask),
+            "wildcard_mask": str(network.hostmask),
+            "total_addresses": network.num_addresses,
+            "usable_hosts": max(network.num_addresses - 2, 0),
+            "first_usable_ip": str(network.network_address + 1),
+            "last_usable_ip": str(network.broadcast_address - 1)
+        }
+
+    except ValueError:
+        return {
+            "error": "Invalid IPv4 CIDR network"
+        }
