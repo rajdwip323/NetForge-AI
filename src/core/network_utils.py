@@ -523,3 +523,44 @@ def get_subnet_calculation(cidr):
         return {
             "error": "Invalid IPv4 CIDR network"
         }
+
+
+def analyze_ip_subnet(ip_cidr):
+    """
+    Analyze an IPv4 address with CIDR notation
+    and return complete subnet information.
+    """
+
+    try:
+        # Validate IP/CIDR input
+        interface = ipaddress.ip_interface(ip_cidr)
+
+        # Ensure IPv4
+        if interface.version != 4:
+            return {
+                "error": "Only IPv4 addresses are supported"
+            }
+
+        # Get subnet calculation
+        subnet_info = get_subnet_calculation(ip_cidr)
+
+        if "error" in subnet_info:
+            return subnet_info
+
+        return {
+            "ip_address": str(interface.ip),
+            "network_address": subnet_info["network_address"],
+            "broadcast_address": subnet_info["broadcast_address"],
+            "prefix_length": subnet_info["prefix_length"],
+            "subnet_mask": subnet_info["subnet_mask"],
+            "wildcard_mask": subnet_info["wildcard_mask"],
+            "total_addresses": subnet_info["total_addresses"],
+            "usable_hosts": subnet_info["usable_hosts"],
+            "first_usable_ip": subnet_info["first_usable_ip"],
+            "last_usable_ip": subnet_info["last_usable_ip"]
+        }
+
+    except ValueError:
+        return {
+            "error": "Invalid IPv4 address or CIDR"
+        }
