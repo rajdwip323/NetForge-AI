@@ -1,9 +1,18 @@
+
 import sys
 import os
 
+# Add src directory to Python path
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
-from core.network_utils import analyze_ip_subnet
+from core.network_utils import (
+    analyze_ip_subnet,
+    validate_ip,
+    get_ip_version,
+    get_network_info,
+    get_subnet_calculation,
+    get_vlsm_calculation
+)
 
 
 def display_banner():
@@ -24,6 +33,181 @@ def display_menu():
     print("6. IP & Subnet Analyzer")
     print("0. Exit")
     print("-" * 55)
+
+
+def run_ip_validator():
+    print("\n" + "=" * 55)
+    print("              IP ADDRESS VALIDATOR")
+    print("=" * 55)
+
+    ip_address = input("Enter IP address: ").strip()
+
+    result = validate_ip(ip_address)
+
+    print("\nValidation Result")
+    print("-" * 55)
+
+    if result:
+        print("Status: VALID IP ADDRESS")
+    else:
+        print("Status: INVALID IP ADDRESS")
+
+    print("-" * 55)
+
+
+def run_ip_version_detector():
+    print("\n" + "=" * 55)
+    print("              IPv4 / IPv6 DETECTOR")
+    print("=" * 55)
+
+    ip_address = input("Enter IP address: ").strip()
+
+    result = get_ip_version(ip_address)
+
+    print("\nDetection Result")
+    print("-" * 55)
+
+    if result == "Invalid IP":
+        print("Status : INVALID IP ADDRESS")
+    else:
+        print(f"Version: {result}")
+
+    print("-" * 55)
+
+
+def run_network_information():
+    print("\n" + "=" * 55)
+    print("              NETWORK INFORMATION")
+    print("=" * 55)
+
+    ip_address = input("Enter IP address: ").strip()
+    subnet_mask = input("Enter Subnet Mask: ").strip()
+
+    result = get_network_info(ip_address, subnet_mask)
+
+    if "error" in result:
+        print(f"\nError: {result['error']}")
+        return
+
+    print("\nNetwork Information")
+    print("-" * 55)
+    print(f"IP Address       : {ip_address}")
+    print(f"Subnet Mask      : {subnet_mask}")
+    print(f"Network Address  : {result['network_address']}")
+    print(f"Broadcast Address: {result['broadcast_address']}")
+    print(f"Total Addresses  : {result['total_addresses']}")
+    print(f"Usable Hosts     : {result['usable_hosts']}")
+    print("-" * 55)
+
+
+def run_subnet_calculator():
+    print("\n" + "=" * 55)
+    print("                SUBNET CALCULATOR")
+    print("=" * 55)
+
+    cidr = input("Enter IPv4 network with CIDR: ").strip()
+
+    result = get_subnet_calculation(cidr)
+
+    if "error" in result:
+        print(f"\nError: {result['error']}")
+        return
+
+    print("\nSubnet Calculation")
+    print("-" * 55)
+    print(f"Network Address   : {result['network_address']}")
+    print(f"Broadcast Address : {result['broadcast_address']}")
+    print(f"Prefix Length     : /{result['prefix_length']}")
+    print(f"Subnet Mask       : {result['subnet_mask']}")
+    print(f"Wildcard Mask     : {result['wildcard_mask']}")
+    print(f"Total Addresses   : {result['total_addresses']}")
+    print(f"Usable Hosts      : {result['usable_hosts']}")
+    print(f"First Usable IP   : {result['first_usable_ip']}")
+    print(f"Last Usable IP    : {result['last_usable_ip']}")
+    print("-" * 55)
+
+
+def run_vlsm_calculator():
+    print("\n" + "=" * 55)
+    print("                 VLSM CALCULATOR")
+    print("=" * 55)
+
+    network = input(
+        "Enter base network (e.g. 192.168.1.0/24): "
+    ).strip()
+
+    host_input = input(
+        "Enter host requirements separated by commas "
+        "(e.g. 100,50,20,10): "
+    ).strip()
+
+    try:
+        host_requirements = [
+            int(host.strip())
+            for host in host_input.split(",")
+        ]
+    except ValueError:
+        print("\nError: Host requirements must be integers.")
+        return
+
+    if not host_requirements:
+        print("\nError: Host requirements cannot be empty.")
+        return
+
+    result = get_vlsm_calculation(
+        network,
+        host_requirements
+    )
+
+    if "error" in result:
+        print(f"\nError: {result['error']}")
+        return
+
+    print("\nVLSM Calculation Result")
+    print("-" * 100)
+
+    print(f"Base Network      : {result['network']}")
+    print(
+        f"Host Requirements : "
+        f"{', '.join(map(str, result['host_requirements']))}"
+    )
+
+    print("-" * 100)
+
+    print(
+        f"{'Hosts':<10}"
+        f"{'Network':<20}"
+        f"{'Broadcast':<20}"
+        f"{'Prefix':<10}"
+        f"{'Usable Hosts':<15}"
+    )
+
+    print("-" * 100)
+
+    for subnet in result["subnets"]:
+        print(
+            f"{subnet['host_requirement']:<10}"
+            f"{subnet['network_address']:<20}"
+            f"{subnet['broadcast_address']:<20}"
+            f"/{subnet['prefix_length']:<9}"
+            f"{subnet['usable_hosts']:<15}"
+        )
+
+    print("-" * 100)
+
+    print("\nHost Ranges")
+    print("-" * 100)
+
+    for subnet in result["subnets"]:
+        print(
+            f"{subnet['network_address']}/{subnet['prefix_length']}"
+            f"  ->  "
+            f"{subnet['first_usable_host']}"
+            f" - "
+            f"{subnet['last_usable_host']}"
+        )
+
+    print("=" * 100)
 
 
 def run_ip_subnet_analyzer():
@@ -67,19 +251,19 @@ def main():
             break
 
         elif choice == "1":
-            print("\nIP Address Validator selected.")
+            run_ip_validator()
 
         elif choice == "2":
-            print("\nIPv4 / IPv6 Detector selected.")
+            run_ip_version_detector()
 
         elif choice == "3":
-            print("\nNetwork Information selected.")
+            run_network_information()
 
         elif choice == "4":
-            print("\nSubnet Calculator selected.")
+            run_subnet_calculator()
 
         elif choice == "5":
-            print("\nVLSM Calculator selected.")
+            run_vlsm_calculator()
 
         elif choice == "6":
             run_ip_subnet_analyzer()
@@ -90,3 +274,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
