@@ -35,13 +35,22 @@ def display_menu():
     print("-" * 55)
 
 
+def pause_before_menu():
+    input("\nPress Enter to return to main menu...")
+
+def display_error(message):
+    print("\n[ERROR]")
+    print("-" * 55)
+    print(message)
+    print("-" * 55)
+
+
 def run_ip_validator():
     print("\n" + "=" * 55)
     print("              IP ADDRESS VALIDATOR")
     print("=" * 55)
 
     ip_address = input("Enter IP address: ").strip()
-
     result = validate_ip(ip_address)
 
     print("\nValidation Result")
@@ -53,6 +62,7 @@ def run_ip_validator():
         print("Status: INVALID IP ADDRESS")
 
     print("-" * 55)
+    pause_before_menu()
 
 
 def run_ip_version_detector():
@@ -61,7 +71,6 @@ def run_ip_version_detector():
     print("=" * 55)
 
     ip_address = input("Enter IP address: ").strip()
-
     result = get_ip_version(ip_address)
 
     print("\nDetection Result")
@@ -73,6 +82,7 @@ def run_ip_version_detector():
         print(f"Version: {result}")
 
     print("-" * 55)
+    pause_before_menu()
 
 
 def run_network_information():
@@ -86,8 +96,9 @@ def run_network_information():
     result = get_network_info(ip_address, subnet_mask)
 
     if "error" in result:
-        print(f"\nError: {result['error']}")
-        return
+        display_error(result["error"])
+    pause_before_menu()
+    return
 
     print("\nNetwork Information")
     print("-" * 55)
@@ -99,6 +110,8 @@ def run_network_information():
     print(f"Usable Hosts     : {result['usable_hosts']}")
     print("-" * 55)
 
+    pause_before_menu()
+
 
 def run_subnet_calculator():
     print("\n" + "=" * 55)
@@ -106,12 +119,12 @@ def run_subnet_calculator():
     print("=" * 55)
 
     cidr = input("Enter IPv4 network with CIDR: ").strip()
-
     result = get_subnet_calculation(cidr)
 
     if "error" in result:
-        print(f"\nError: {result['error']}")
-        return
+        display_error(result["error"])
+    pause_before_menu()
+    return
 
     print("\nSubnet Calculation")
     print("-" * 55)
@@ -126,10 +139,12 @@ def run_subnet_calculator():
     print(f"Last Usable IP    : {result['last_usable_ip']}")
     print("-" * 55)
 
+    pause_before_menu()
+
 
 def run_vlsm_calculator():
     print("\n" + "=" * 55)
-    print("                 VLSM CALCULATOR")
+    print("                VLSM CALCULATOR")
     print("=" * 55)
 
     network = input(
@@ -147,12 +162,14 @@ def run_vlsm_calculator():
             for host in host_input.split(",")
         ]
     except ValueError:
-        print("\nError: Host requirements must be integers.")
-        return
+         display_error("Host requirements must be integers.")
+    pause_before_menu()
+    return
 
     if not host_requirements:
-        print("\nError: Host requirements cannot be empty.")
-        return
+        display_error("Host requirements cannot be empty.")
+    pause_before_menu()
+    return
 
     result = get_vlsm_calculation(
         network,
@@ -160,8 +177,9 @@ def run_vlsm_calculator():
     )
 
     if "error" in result:
-        print(f"\nError: {result['error']}")
-        return
+        display_error(result["error"])
+    pause_before_menu()
+    return
 
     print("\nVLSM Calculation Result")
     print("-" * 100)
@@ -209,6 +227,8 @@ def run_vlsm_calculator():
 
     print("=" * 100)
 
+    pause_before_menu()
+
 
 def run_ip_subnet_analyzer():
     print("\n" + "=" * 55)
@@ -216,12 +236,12 @@ def run_ip_subnet_analyzer():
     print("=" * 55)
 
     ip_cidr = input("Enter IPv4 address with CIDR: ").strip()
-
     result = analyze_ip_subnet(ip_cidr)
 
     if "error" in result:
-        print(f"\nError: {result['error']}")
-        return
+        display_error(result["error"])
+    pause_before_menu()
+    return
 
     print("\nAnalysis Result")
     print("-" * 55)
@@ -237,6 +257,8 @@ def run_ip_subnet_analyzer():
     print(f"Last Usable IP   : {result['last_usable_ip']}")
     print("-" * 55)
 
+    pause_before_menu()
+
 
 def main():
     display_banner()
@@ -247,7 +269,11 @@ def main():
         choice = input("Enter your choice: ").strip()
 
         if choice == "0":
-            print("\nExiting NetForge-AI...")
+            print("\n" + "=" * 55)
+            print("        Thank you for using NETFORGE-AI")
+            print("      Smart Network Engineering Suite")
+            print("=" * 55)
+            print("\nGoodbye!")
             break
 
         elif choice == "1":
@@ -269,7 +295,7 @@ def main():
             run_ip_subnet_analyzer()
 
         else:
-            print("\nInvalid choice. Please try again.")
+             display_error("Invalid choice. Please try again.")
 
 
 if __name__ == "__main__":
