@@ -564,3 +564,98 @@ def analyze_ip_subnet(ip_cidr):
         return {
             "error": "Invalid IPv4 address or CIDR"
         }
+
+
+    
+
+def get_supernet_calculation(networks):
+    """
+    Calculate the smallest IPv4 supernet containing all given networks.
+
+    Args:
+        networks (list): List of IPv4 networks in CIDR notation.
+
+    Returns:
+        dict: Supernet calculation result or error message.
+    """
+
+    try:
+        if not networks:
+            return {
+                "error": "Network list cannot be empty."
+            }
+
+        parsed_networks = []
+
+        for network in networks:
+            try:
+                parsed_network = ipaddress.ip_network(
+                    network,
+                    strict=True
+                )
+
+                if parsed_network.version != 4:
+                    return {
+                        "error": "Only IPv4 networks are supported."
+                    }
+
+                parsed_networks.append(parsed_network)
+
+            except ValueError:
+                return {
+                    "error": f"Invalid IPv4 network: {network}"
+                }
+
+        # Find the lowest network address and highest broadcast address.
+        first_address = min(
+            network.network_address
+            for network in parsed_networks
+        )
+
+        last_address = max(
+            network.broadcast_address
+            for network in parsed_networks
+        )
+
+        first_int = int(first_address)
+        last_int = int(last_address)
+
+        # Find the common prefix between the first and last address.
+        xor_value = first_int ^ last_int
+
+        if xor_value == 0:
+            prefix_length = 32
+        else:
+            prefix_length = 32 - xor_value.bit_length()
+
+        # Create the subnet mask.
+        subnet_mask_int = (
+            (0xFFFFFFFF << (32 - prefix_length))
+            & 0xFFFFFFFF
+        )
+
+        # Calculate the supernet network address.
+        supernet_address_int = first_int & subnet_mask_int
+
+        supernet_address = ipaddress.IPv4Address(
+            supernet_address_int
+        )
+
+        supernet = ipaddress.ip_network(
+            f"{supernet_address}/{prefix_length}",
+            strict=True
+        )
+
+        return {
+            "supernet": str(supernet),
+            "prefix_length": supernet.prefixlen,
+            "subnet_mask": str(supernet.netmask),
+            "wildcard_mask": str(supernet.hostmask),
+            "total_addresses": supernet.num_addresses
+        }
+
+    except Exception as e:
+        return {
+            "error": str(e)
+        }
+
