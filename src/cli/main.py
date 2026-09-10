@@ -1,4 +1,3 @@
-
 import sys
 import os
 
@@ -37,6 +36,7 @@ def display_menu():
 
 def pause_before_menu():
     input("\nPress Enter to return to main menu...")
+
 
 def display_error(message):
     print("\n[ERROR]")
@@ -97,8 +97,8 @@ def run_network_information():
 
     if "error" in result:
         display_error(result["error"])
-    pause_before_menu()
-    return
+        pause_before_menu()
+        return
 
     print("\nNetwork Information")
     print("-" * 55)
@@ -119,12 +119,13 @@ def run_subnet_calculator():
     print("=" * 55)
 
     cidr = input("Enter IPv4 network with CIDR: ").strip()
+
     result = get_subnet_calculation(cidr)
 
     if "error" in result:
         display_error(result["error"])
-    pause_before_menu()
-    return
+        pause_before_menu()
+        return
 
     print("\nSubnet Calculation")
     print("-" * 55)
@@ -162,14 +163,14 @@ def run_vlsm_calculator():
             for host in host_input.split(",")
         ]
     except ValueError:
-         display_error("Host requirements must be integers.")
-    pause_before_menu()
-    return
+        display_error("Host requirements must be integers.")
+        pause_before_menu()
+        return
 
     if not host_requirements:
         display_error("Host requirements cannot be empty.")
-    pause_before_menu()
-    return
+        pause_before_menu()
+        return
 
     result = get_vlsm_calculation(
         network,
@@ -178,18 +179,16 @@ def run_vlsm_calculator():
 
     if "error" in result:
         display_error(result["error"])
-    pause_before_menu()
-    return
+        pause_before_menu()
+        return
 
     print("\nVLSM Calculation Result")
     print("-" * 100)
-
     print(f"Base Network      : {result['network']}")
     print(
         f"Host Requirements : "
         f"{', '.join(map(str, result['host_requirements']))}"
     )
-
     print("-" * 100)
 
     print(
@@ -212,7 +211,6 @@ def run_vlsm_calculator():
         )
 
     print("-" * 100)
-
     print("\nHost Ranges")
     print("-" * 100)
 
@@ -236,12 +234,13 @@ def run_ip_subnet_analyzer():
     print("=" * 55)
 
     ip_cidr = input("Enter IPv4 address with CIDR: ").strip()
+
     result = analyze_ip_subnet(ip_cidr)
 
     if "error" in result:
         display_error(result["error"])
-    pause_before_menu()
-    return
+        pause_before_menu()
+        return
 
     print("\nAnalysis Result")
     print("-" * 55)
@@ -295,9 +294,8 @@ def main():
             run_ip_subnet_analyzer()
 
         else:
-             display_error("Invalid choice. Please try again.")
+            display_error("Invalid choice. Please try again.")
 
 
 if __name__ == "__main__":
     main()
-
