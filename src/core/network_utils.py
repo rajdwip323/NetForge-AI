@@ -659,3 +659,42 @@ def get_supernet_calculation(networks):
             "error": str(e)
         }
 
+
+def get_ip_range(ip_cidr):
+    """
+    Generate all usable host IP addresses from an IPv4 network.
+
+    Args:
+        ip_cidr (str): IPv4 network in CIDR notation.
+
+    Returns:
+        dict: Network, broadcast, first host, last host,
+              usable host count, and list of usable IPs.
+    """
+    try:
+        network = ipaddress.ip_network(ip_cidr, strict=False)
+
+        if network.version != 4:
+            return {
+                "success": False,
+                "error": "Only IPv4 networks are supported."
+            }
+
+        hosts = list(network.hosts())
+
+        return {
+            "success": True,
+            "network": str(network.network_address),
+            "broadcast": str(network.broadcast_address),
+            "first_host": str(hosts[0]) if hosts else None,
+            "last_host": str(hosts[-1]) if hosts else None,
+            "usable_host_count": len(hosts),
+            "hosts": [str(ip) for ip in hosts]
+        }
+
+    except ValueError:
+        return {
+            "success": False,
+            "error": "Invalid IPv4 network or CIDR."
+        }
+

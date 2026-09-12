@@ -7,23 +7,15 @@ import os
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from core.network_utils import (
-
     analyze_ip_subnet,
-
     validate_ip,
-
     get_ip_version,
-
     get_network_info,
-
     get_subnet_calculation,
-
     get_vlsm_calculation,
-
-    get_supernet_calculation
-
+    get_supernet_calculation,
+    get_ip_range
 )
-
 
 def display_banner():
 
@@ -55,6 +47,8 @@ def display_menu():
     print("6. IP & Subnet Analyzer")
 
     print("7. Supernet Calculator")
+
+    print("8. IP Range Generator")
 
     print("0. Exit")
 
@@ -544,11 +538,50 @@ def main():
 
             run_supernet_calculator()
 
+        elif choice == "8":
+
+            run_ip_range_generator()
+
         else:
 
             display_error("Invalid choice. Please try again.")
 
 
-if __name__ == "__main__":
+def run_ip_range_generator():
+    print("\n" + "=" * 55)
+    print("              IP RANGE GENERATOR")
+    print("=" * 55)
 
-    main()
+    ip_cidr = input(
+        "Enter IPv4 network with CIDR: "
+    ).strip()
+
+    result = get_ip_range(ip_cidr)
+
+    if not result["success"]:
+        display_error(result["error"])
+        pause_before_menu()
+        return
+
+    print("\nIP Range Generation Result")
+    print("-" * 55)
+    print(f"Network Address  : {result['network']}")
+    print(f"Broadcast Address: {result['broadcast']}")
+    print(f"First Host       : {result['first_host']}")
+    print(f"Last Host        : {result['last_host']}")
+    print(f"Usable Hosts     : {result['usable_host_count']}")
+    print("-" * 55)
+
+    print("\nUsable IP Range")
+    print("-" * 55)
+
+    for ip in result["hosts"]:
+        print(ip)
+
+    print("-" * 55)
+
+    pause_before_menu()
+
+
+if __name__ == "__main__":
+    main()   
