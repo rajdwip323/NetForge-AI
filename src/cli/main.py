@@ -14,7 +14,8 @@ from core.network_utils import (
     get_subnet_calculation,
     get_vlsm_calculation,
     get_supernet_calculation,
-    get_ip_range
+    get_ip_range,
+    check_ip_type
 )
 
 def display_banner():
@@ -49,6 +50,8 @@ def display_menu():
     print("7. Supernet Calculator")
 
     print("8. IP Range Generator")
+
+    print("9. Private / Public IP Check")
 
     print("0. Exit")
 
@@ -542,6 +545,10 @@ def main():
 
             run_ip_range_generator()
 
+        elif choice == "9":
+
+            run_ip_type_check()
+
         else:
 
             display_error("Invalid choice. Please try again.")
@@ -578,6 +585,30 @@ def run_ip_range_generator():
     for ip in result["hosts"]:
         print(ip)
 
+    print("-" * 55)
+
+    pause_before_menu()
+
+
+def run_ip_type_check():
+    print("\n" + "=" * 55)
+    print("          PRIVATE / PUBLIC IP CHECK")
+    print("=" * 55)
+
+    ip_address = input("Enter IP address: ").strip()
+
+    result = check_ip_type(ip_address)
+
+    if not result["success"]:
+        display_error(result["error"])
+        pause_before_menu()
+        return
+
+    print("\nIP Classification Result")
+    print("-" * 55)
+    print(f"IP Address : {result['ip_address']}")
+    print(f"IP Version : {result['ip_version']}")
+    print(f"Type       : {result['type']}")
     print("-" * 55)
 
     pause_before_menu()

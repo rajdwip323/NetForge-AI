@@ -698,3 +698,33 @@ def get_ip_range(ip_cidr):
             "error": "Invalid IPv4 network or CIDR."
         }
 
+
+def check_ip_type(ip_address):
+    """
+    Classify an IP address as Private, Public,
+    Loopback, or Link-local.
+    """
+
+    if not validate_ip(ip_address):
+        return {
+            "success": False,
+            "error": "Invalid IP address."
+        }
+
+    ip = ipaddress.ip_address(ip_address)
+
+    if ip.is_loopback:
+        ip_type = "Loopback"
+    elif ip.is_link_local:
+        ip_type = "Link-local"
+    elif ip.is_private:
+        ip_type = "Private"
+    else:
+        ip_type = "Public"
+
+    return {
+        "success": True,
+        "ip_address": str(ip),
+        "ip_version": f"IPv{ip.version}",
+        "type": ip_type
+    }
