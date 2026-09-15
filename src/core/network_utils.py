@@ -1,6 +1,10 @@
 import ipaddress
 
 
+# ============================================================
+# BASIC IP TOOLS
+# ============================================================
+
 def validate_ip(ip_address):
     try:
         ipaddress.ip_address(ip_address)
@@ -17,6 +21,10 @@ def get_ip_version(ip_address):
         return "Invalid IP"
 
 
+# ============================================================
+# NETWORK / SUBNET TOOLS
+# ============================================================
+
 def get_network_info(ip_address, subnet_mask):
     try:
         network = ipaddress.IPv4Network(
@@ -32,7 +40,9 @@ def get_network_info(ip_address, subnet_mask):
         }
 
     except ValueError:
-        return {"error": "Invalid IPv4 address or subnet mask"}
+        return {
+            "error": "Invalid IPv4 address or subnet mask"
+        }
 
 
 def get_cidr_network_info(cidr):
@@ -48,7 +58,9 @@ def get_cidr_network_info(cidr):
         }
 
     except ValueError:
-        return {"error": "Invalid CIDR network"}
+        return {
+            "error": "Invalid CIDR network"
+        }
 
 
 def get_host_range(cidr):
@@ -64,7 +76,9 @@ def get_host_range(cidr):
         }
 
     except ValueError:
-        return {"error": "Invalid CIDR network"}
+        return {
+            "error": "Invalid CIDR network"
+        }
 
 
 def get_prefix_length(subnet_mask):
@@ -81,6 +95,7 @@ def get_prefix_length(subnet_mask):
 
 def get_subnet_info(cidr):
     """Return detailed subnet information."""
+
     try:
         network = ipaddress.ip_network(cidr, strict=False)
         hosts = list(network.hosts())
@@ -96,11 +111,14 @@ def get_subnet_info(cidr):
         }
 
     except ValueError:
-        return {"error": "Invalid CIDR network"}
+        return {
+            "error": "Invalid CIDR network"
+        }
 
 
 def get_wildcard_mask(subnet_mask):
     """Return wildcard mask from an IPv4 subnet mask."""
+
     try:
         network = ipaddress.IPv4Network(
             f"0.0.0.0/{subnet_mask}"
@@ -113,6 +131,10 @@ def get_wildcard_mask(subnet_mask):
     except ValueError:
         return "Invalid subnet mask"
 
+
+# ============================================================
+# VLSM TOOLS
+# ============================================================
 
 def calculate_prefix(hosts):
     required_addresses = hosts + 2
@@ -127,10 +149,72 @@ def calculate_prefix(hosts):
     return prefix
 
 
+def validate_vlsm_requirements(network, host_requirements):
+    """
+    Validate whether the requested VLSM subnets
+    can fit inside the given IPv4 network.
+    """
+
+    try:
+        base_network = ipaddress.ip_network(
+            network,
+            strict=False
+        )
+
+    except ValueError:
+        return {
+            "valid": False,
+            "error": "Invalid network"
+        }
+
+    if base_network.version != 4:
+        return {
+            "valid": False,
+            "error": "Only IPv4 networks are supported"
+        }
+
+    if not host_requirements:
+        return {
+            "valid": False,
+            "error": "Host requirements cannot be empty"
+        }
+
+    for hosts in host_requirements:
+
+        if not isinstance(hosts, int) or isinstance(hosts, bool):
+            return {
+                "valid": False,
+                "error": "Host requirements must be integers"
+            }
+
+        if hosts <= 0:
+            return {
+                "valid": False,
+                "error": "Host requirements must be greater than 0"
+            }
+
+    required_addresses = 0
+
+    for hosts in host_requirements:
+        prefix = calculate_prefix(hosts)
+        subnet_size = 2 ** (32 - prefix)
+        required_addresses += subnet_size
+
+    if required_addresses > base_network.num_addresses:
+        return {
+            "valid": False,
+            "error": "Insufficient network space for the requested hosts"
+        }
+
+    return {
+        "valid": True,
+        "error": None
+    }
+
+
 def calculate_vlsm_networks(network, host_requirements):
     """Calculate VLSM subnet allocation after validating requirements."""
 
-    # Step 1: Validate VLSM requirements
     validation = validate_vlsm_requirements(
         network,
         host_requirements
@@ -141,31 +225,26 @@ def calculate_vlsm_networks(network, host_requirements):
             "error": validation["error"]
         }
 
-    # Step 2: Convert network into IPv4Network object
     base_network = ipaddress.ip_network(
         network,
         strict=False
     )
 
-    # Step 3: Sort requirements from largest to smallest
     host_requirements = sorted(
         host_requirements,
         reverse=True
     )
 
-    # Step 4: Calculate prefix for each requirement
     prefixes = []
 
     for hosts in host_requirements:
         prefix = calculate_prefix(hosts)
         prefixes.append(prefix)
 
-    # Step 5: Start allocation from base network address
     current_network = base_network.network_address
 
     subnets = []
 
-    # Step 6: Generate each subnet
     for prefix in prefixes:
 
         subnet = ipaddress.ip_network(
@@ -173,7 +252,6 @@ def calculate_vlsm_networks(network, host_requirements):
             strict=False
         )
 
-        # Step 7: Boundary check
         if not subnet.subnet_of(base_network):
             return {
                 "error": "Generated subnet is outside the base network"
@@ -181,10 +259,8 @@ def calculate_vlsm_networks(network, host_requirements):
 
         subnets.append(subnet)
 
-        # Step 8: Move to next available address
         current_network = subnet.broadcast_address + 1
 
-    # Step 9: Return generated subnets
     return subnets
 
 
@@ -227,6 +303,7 @@ def get_professional_vlsm_output(network, host_requirements):
     professional_output = []
 
     for hosts, subnet in zip(sorted_requirements, subnets):
+
         subnet_info = get_subnet_info(str(subnet))
 
         professional_output.append({
@@ -264,240 +341,9 @@ def get_vlsm_calculation(network, host_requirements):
     }
 
 
-def get_user_vlsm_input():
-    """
-    Get base network and host requirements from the user.
-    """
-
-    network = input("Enter base network (e.g. 192.168.1.0/24): ").strip()
-
-    host_input = input(
-        "Enter host requirements separated by commas (e.g. 100,50,20,10): "
-    ).strip()
-
-    try:
-        host_requirements = [
-            int(host.strip())
-            for host in host_input.split(",")
-        ]
-    except ValueError:
-        return None
-
-    return {
-        "network": network,
-        "host_requirements": host_requirements
-    }
-
-
-import ipaddress 
-
-
-def get_positive_integer(prompt):
-    """
-    Get a valid positive integer from the user.
-    """
-    while True:
-        value = input(prompt).strip()
-
-        if not value:
-            print("❌ Input cannot be empty.")
-            continue
-
-        try:
-            number = int(value)
-
-            if number <= 0:
-                print("❌ Host requirement must be greater than 0.")
-                continue
-
-            return number
-
-        except ValueError:
-            print("❌ Please enter a valid integer.")
-
-
-def get_valid_network():
-    """
-    Get a valid IPv4 network in CIDR notation.
-    """
-    while True:
-        value = input("Enter Network (CIDR): ").strip()
-
-        if not value:
-            print("❌ Network cannot be empty.")
-            continue
-
-        try:
-            network = ipaddress.ip_network(value, strict=False)
-
-            if network.version != 4:
-                print("❌ Only IPv4 networks are supported for VLSM.")
-                continue
-
-            return network
-
-        except ValueError:
-            print("❌ Invalid CIDR network. Example: 192.168.1.0/24")
-
-
-def print_vlsm_report(results):
-    """
-    Display VLSM results in a professional table.
-    """
-
-    print()
-    print("=" * 100)
-    print("                         VLSM NETWORK REPORT")
-    print("=" * 100)
-
-    print(
-        f"{'Requirement':<15}"
-        f"{'Network':<22}"
-        f"{'Prefix':<10}"
-        f"{'Usable Hosts':<15}"
-        f"{'Host Range'}"
-    )
-
-    print("-" * 100)
-
-    for result in results:
-        requirement = result.get("required_hosts", "-")
-        network = result.get("network", "-")
-        prefix = result.get("prefix", "-")
-        usable_hosts = result.get("usable_hosts", "-")
-        first_host = result.get("first_host", "-")
-        last_host = result.get("last_host", "-")
-
-        host_range = f"{first_host} - {last_host}"
-
-        print(
-            f"{str(requirement):<15}"
-            f"{str(network):<22}"
-            f"{str(prefix):<10}"
-            f"{str(usable_hosts):<15}"
-            f"{host_range}"
-        )
-
-    print("=" * 100)
-
-
-def main():
-    print()
-    print("=" * 60)
-    print("                  NETFORGE-AI")
-    print("                 VLSM CALCULATOR")
-    print("=" * 60)
-
-    network = get_valid_network()
-
-    print()
-    print(f"Selected Network: {network}")
-
-    host_count = get_positive_integer(
-        "Enter number of subnet requirements: "
-    )
-
-    requirements = []
-
-    print()
-    print("Enter host requirements:")
-    
-    for i in range(host_count):
-        hosts = get_positive_integer(
-            f"Requirement {i + 1}: "
-        )
-        requirements.append(hosts)
-
-    print()
-    print("Calculating VLSM networks...")
-
-    try:
-        results = calculate_vlsm_networks(
-            str(network),
-            requirements
-        )
-
-        if not results:
-            print("❌ No VLSM networks could be generated.")
-            return
-
-        print_vlsm_report(results)
-
-    except ValueError as error:
-        print()
-        print("❌ VLSM Calculation Error")
-        print(f"   {error}")
-
-    except Exception as error:
-        print()
-        print("❌ Unexpected Error")
-        print(f"   {error}")
-
-
-if __name__ == "__main__":
-    main()
-
-
-def validate_vlsm_requirements(network, host_requirements):
-    """
-    Validate whether the requested VLSM subnets
-    can fit inside the given IPv4 network.
-    """
-
-    try:
-        base_network = ipaddress.ip_network(
-            network,
-            strict=False
-        )
-    except ValueError:
-        return {
-            "valid": False,
-            "error": "Invalid network"
-        }
-
-    if base_network.version != 4:
-        return {
-            "valid": False,
-            "error": "Only IPv4 networks are supported"
-        }
-
-    if not host_requirements:
-        return {
-            "valid": False,
-            "error": "Host requirements cannot be empty"
-        }
-
-    for hosts in host_requirements:
-        if not isinstance(hosts, int) or isinstance(hosts, bool):
-            return {
-                "valid": False,
-                "error": "Host requirements must be integers"
-            }
-
-        if hosts <= 0:
-            return {
-                "valid": False,
-                "error": "Host requirements must be greater than 0"
-            }
-
-    required_addresses = 0
-
-    for hosts in host_requirements:
-        prefix = calculate_prefix(hosts)
-        subnet_size = 2 ** (32 - prefix)
-        required_addresses += subnet_size
-
-    if required_addresses > base_network.num_addresses:
-        return {
-            "valid": False,
-            "error": "Insufficient network space for the requested hosts"
-        }
-
-    return {
-        "valid": True,
-        "error": None
-    }
-
+# ============================================================
+# SUBNET CALCULATION / ANALYZER
+# ============================================================
 
 def get_subnet_calculation(cidr):
     """
@@ -505,7 +351,10 @@ def get_subnet_calculation(cidr):
     """
 
     try:
-        network = ipaddress.IPv4Network(cidr, strict=False)
+        network = ipaddress.IPv4Network(
+            cidr,
+            strict=False
+        )
 
         return {
             "network_address": str(network.network_address),
@@ -532,16 +381,13 @@ def analyze_ip_subnet(ip_cidr):
     """
 
     try:
-        # Validate IP/CIDR input
         interface = ipaddress.ip_interface(ip_cidr)
 
-        # Ensure IPv4
         if interface.version != 4:
             return {
                 "error": "Only IPv4 addresses are supported"
             }
 
-        # Get subnet calculation
         subnet_info = get_subnet_calculation(ip_cidr)
 
         if "error" in subnet_info:
@@ -566,17 +412,14 @@ def analyze_ip_subnet(ip_cidr):
         }
 
 
-    
+# ============================================================
+# SUPERNET CALCULATOR
+# ============================================================
 
 def get_supernet_calculation(networks):
     """
-    Calculate the smallest IPv4 supernet containing all given networks.
-
-    Args:
-        networks (list): List of IPv4 networks in CIDR notation.
-
-    Returns:
-        dict: Supernet calculation result or error message.
+    Calculate the smallest IPv4 supernet containing
+    all given networks.
     """
 
     try:
@@ -588,6 +431,7 @@ def get_supernet_calculation(networks):
         parsed_networks = []
 
         for network in networks:
+
             try:
                 parsed_network = ipaddress.ip_network(
                     network,
@@ -606,7 +450,6 @@ def get_supernet_calculation(networks):
                     "error": f"Invalid IPv4 network: {network}"
                 }
 
-        # Find the lowest network address and highest broadcast address.
         first_address = min(
             network.network_address
             for network in parsed_networks
@@ -620,7 +463,6 @@ def get_supernet_calculation(networks):
         first_int = int(first_address)
         last_int = int(last_address)
 
-        # Find the common prefix between the first and last address.
         xor_value = first_int ^ last_int
 
         if xor_value == 0:
@@ -628,13 +470,11 @@ def get_supernet_calculation(networks):
         else:
             prefix_length = 32 - xor_value.bit_length()
 
-        # Create the subnet mask.
         subnet_mask_int = (
             (0xFFFFFFFF << (32 - prefix_length))
             & 0xFFFFFFFF
         )
 
-        # Calculate the supernet network address.
         supernet_address_int = first_int & subnet_mask_int
 
         supernet_address = ipaddress.IPv4Address(
@@ -654,25 +494,27 @@ def get_supernet_calculation(networks):
             "total_addresses": supernet.num_addresses
         }
 
-    except Exception as e:
+    except Exception as error:
         return {
-            "error": str(e)
+            "error": str(error)
         }
 
 
+# ============================================================
+# IP RANGE GENERATOR
+# ============================================================
+
 def get_ip_range(ip_cidr):
     """
-    Generate all usable host IP addresses from an IPv4 network.
-
-    Args:
-        ip_cidr (str): IPv4 network in CIDR notation.
-
-    Returns:
-        dict: Network, broadcast, first host, last host,
-              usable host count, and list of usable IPs.
+    Generate all usable host IP addresses
+    from an IPv4 network.
     """
+
     try:
-        network = ipaddress.ip_network(ip_cidr, strict=False)
+        network = ipaddress.ip_network(
+            ip_cidr,
+            strict=False
+        )
 
         if network.version != 4:
             return {
@@ -699,6 +541,10 @@ def get_ip_range(ip_cidr):
         }
 
 
+# ============================================================
+# PRIVATE / PUBLIC IP CHECK
+# ============================================================
+
 def check_ip_type(ip_address):
     """
     Classify an IP address as Private, Public,
@@ -715,10 +561,13 @@ def check_ip_type(ip_address):
 
     if ip.is_loopback:
         ip_type = "Loopback"
+
     elif ip.is_link_local:
         ip_type = "Link-local"
+
     elif ip.is_private:
         ip_type = "Private"
+
     else:
         ip_type = "Public"
 
@@ -727,4 +576,258 @@ def check_ip_type(ip_address):
         "ip_address": str(ip),
         "ip_version": f"IPv{ip.version}",
         "type": ip_type
+    }
+
+
+# ============================================================
+# VLSM CLI HELPERS
+# ============================================================
+
+def get_user_vlsm_input():
+    """
+    Get base network and host requirements from the user.
+    """
+
+    network = input(
+        "Enter base network (e.g. 192.168.1.0/24): "
+    ).strip()
+
+    host_input = input(
+        "Enter host requirements separated by commas "
+        "(e.g. 100,50,20,10): "
+    ).strip()
+
+    try:
+        host_requirements = [
+            int(host.strip())
+            for host in host_input.split(",")
+        ]
+
+    except ValueError:
+        return None
+
+    return {
+        "network": network,
+        "host_requirements": host_requirements
+    }
+
+
+def get_positive_integer(prompt):
+    """
+    Get a valid positive integer from the user.
+    """
+
+    while True:
+
+        value = input(prompt).strip()
+
+        if not value:
+            print("❌ Input cannot be empty.")
+            continue
+
+        try:
+            number = int(value)
+
+            if number <= 0:
+                print("❌ Host requirement must be greater than 0.")
+                continue
+
+            return number
+
+        except ValueError:
+            print("❌ Please enter a valid integer.")
+
+
+def get_valid_network():
+    """
+    Get a valid IPv4 network in CIDR notation.
+    """
+
+    while True:
+
+        value = input(
+            "Enter Network (CIDR): "
+        ).strip()
+
+        if not value:
+            print("❌ Network cannot be empty.")
+            continue
+
+        try:
+            network = ipaddress.ip_network(
+                value,
+                strict=False
+            )
+
+            if network.version != 4:
+                print(
+                    "❌ Only IPv4 networks are supported for VLSM."
+                )
+                continue
+
+            return network
+
+        except ValueError:
+            print(
+                "❌ Invalid CIDR network. "
+                "Example: 192.168.1.0/24"
+            )
+
+
+def print_vlsm_report(results):
+    """
+    Display VLSM results in a professional table.
+    """
+
+    print()
+    print("=" * 100)
+    print("                         VLSM NETWORK REPORT")
+    print("=" * 100)
+
+    print(
+        f"{'Requirement':<15}"
+        f"{'Network':<22}"
+        f"{'Prefix':<10}"
+        f"{'Usable Hosts':<15}"
+        f"{'Host Range'}"
+    )
+
+    print("-" * 100)
+
+    for result in results:
+
+        requirement = result.get("required_hosts", "-")
+        network = result.get("network", "-")
+        prefix = result.get("prefix", "-")
+        usable_hosts = result.get("usable_hosts", "-")
+        first_host = result.get("first_host", "-")
+        last_host = result.get("last_host", "-")
+
+        host_range = f"{first_host} - {last_host}"
+
+        print(
+            f"{str(requirement):<15}"
+            f"{str(network):<22}"
+            f"{str(prefix):<10}"
+            f"{str(usable_hosts):<15}"
+            f"{host_range}"
+        )
+
+    print("=" * 100)
+
+
+def check_ip_range(start_ip, end_ip):
+    """
+    Check and analyze an IP address range.
+
+    Args:
+        start_ip (str): Starting IP address.
+        end_ip (str): Ending IP address.
+
+    Returns:
+        dict: IP range validation and calculation result.
+    """
+
+    # Validate start IP
+    if not validate_ip(start_ip):
+        return {
+            "success": False,
+            "error": "Invalid start IP address."
+        }
+
+    # Validate end IP
+    if not validate_ip(end_ip):
+        return {
+            "success": False,
+            "error": "Invalid end IP address."
+        }
+
+    start = ipaddress.ip_address(start_ip)
+    end = ipaddress.ip_address(end_ip)
+
+    # Check IP version
+    if start.version != end.version:
+        return {
+            "success": False,
+            "error": "Start IP and End IP must be the same IP version."
+        }
+
+    # Check range order
+    if start > end:
+        return {
+            "success": False,
+            "error": "Start IP cannot be greater than End IP."
+        }
+
+    total_addresses = int(end) - int(start) + 1
+
+    return {
+        "success": True,
+        "start_ip": str(start),
+        "end_ip": str(end),
+        "ip_version": start.version,
+        "total_addresses": total_addresses
+    }
+
+
+def check_ip_range_type(start_ip, end_ip):
+    """
+    Analyze whether an IP address range is Private, Public, or Mixed.
+    """
+
+    if not validate_ip(start_ip):
+        return {"success": False, "error": "Invalid start IP address."}
+
+    if not validate_ip(end_ip):
+        return {"success": False, "error": "Invalid end IP address."}
+
+    start = ipaddress.ip_address(start_ip)
+    end = ipaddress.ip_address(end_ip)
+
+    if start.version != end.version:
+        return {
+            "success": False,
+            "error": "Start IP and End IP must be the same IP version."
+        }
+
+    if start > end:
+        return {
+            "success": False,
+            "error": "Start IP cannot be greater than End IP."
+        }
+
+    if start.version == 4:
+        private_networks = [
+            ipaddress.ip_network("10.0.0.0/8"),
+            ipaddress.ip_network("172.16.0.0/12"),
+            ipaddress.ip_network("192.168.0.0/16")
+        ]
+    else:
+        private_networks = [
+            ipaddress.ip_network("fc00::/7")
+        ]
+
+    total_addresses = int(end) - int(start) + 1
+    private_addresses = 0
+
+    for private_network in private_networks:
+        overlap_start = max(start, private_network.network_address)
+        overlap_end = min(end, private_network.broadcast_address)
+
+        if overlap_start <= overlap_end:
+            private_addresses += int(overlap_end) - int(overlap_start) + 1
+
+    if private_addresses == 0:
+        range_type = "Public"
+    elif private_addresses == total_addresses:
+        range_type = "Private"
+    else:
+        range_type = "Mixed"
+
+    return {
+        "success": True,
+        "start_ip": str(start),
+        "end_ip": str(end),
+        "ip_version": start.version,
+        "range_type": range_type
     }
