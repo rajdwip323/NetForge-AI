@@ -831,3 +831,120 @@ def check_ip_range_type(start_ip, end_ip):
         "ip_version": start.version,
         "range_type": range_type
     }
+
+
+def check_ip_range_overlap(start1, end1, start2, end2):
+    """
+    Check whether two IP ranges overlap.
+
+    Returns:
+        dict: Overlap status and range information.
+    """
+
+    try:
+        ip_start1 = ipaddress.ip_address(start1)
+        ip_end1 = ipaddress.ip_address(end1)
+        ip_start2 = ipaddress.ip_address(start2)
+        ip_end2 = ipaddress.ip_address(end2)
+
+        if ip_start1.version != ip_end1.version:
+            return {
+                "success": False,
+                "error": "First range contains mixed IP versions"
+            }
+
+        if ip_start2.version != ip_end2.version:
+            return {
+                "success": False,
+                "error": "Second range contains mixed IP versions"
+            }
+
+        if ip_start1.version != ip_start2.version:
+            return {
+                "success": False,
+                "error": "IP version mismatch between ranges"
+            }
+
+        if ip_start1 > ip_end1:
+            return {
+                "success": False,
+                "error": "First range is invalid"
+            }
+
+        if ip_start2 > ip_end2:
+            return {
+                "success": False,
+                "error": "Second range is invalid"
+            }
+
+        overlap = not (ip_end1 < ip_start2 or ip_end2 < ip_start1)
+
+        return {
+            "success": True,
+            "overlap": overlap
+        }
+
+    except ValueError:
+        return {
+            "success": False,
+            "error": "Invalid IP address"
+        }
+
+
+def check_ip_range_containment(start1, end1, start2, end2):
+    """
+    Check whether the second IP range is fully contained
+    within the first IP range.
+
+    Returns:
+        dict: Containment status.
+    """
+
+    try:
+        ip_start1 = ipaddress.ip_address(start1)
+        ip_end1 = ipaddress.ip_address(end1)
+        ip_start2 = ipaddress.ip_address(start2)
+        ip_end2 = ipaddress.ip_address(end2)
+
+        if ip_start1.version != ip_end1.version:
+            return {
+                "success": False,
+                "error": "First range contains mixed IP versions"
+            }
+
+        if ip_start2.version != ip_end2.version:
+            return {
+                "success": False,
+                "error": "Second range contains mixed IP versions"
+            }
+
+        if ip_start1.version != ip_start2.version:
+            return {
+                "success": False,
+                "error": "IP version mismatch between ranges"
+            }
+
+        if ip_start1 > ip_end1:
+            return {
+                "success": False,
+                "error": "First range is invalid"
+            }
+
+        if ip_start2 > ip_end2:
+            return {
+                "success": False,
+                "error": "Second range is invalid"
+            }
+
+        contained = ip_start1 <= ip_start2 and ip_end2 <= ip_end1
+
+        return {
+            "success": True,
+            "contained": contained
+        }
+
+    except ValueError:
+        return {
+            "success": False,
+            "error": "Invalid IP address"
+        }
