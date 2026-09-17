@@ -948,3 +948,820 @@ def check_ip_range_containment(start1, end1, start2, end2):
             "success": False,
             "error": "Invalid IP address"
         }
+
+
+
+# ============================================================
+# CIDR AGGREGATION / ROUTE SUMMARIZATION
+# ============================================================
+
+def get_cidr_aggregation(networks):
+    """
+    Aggregate contiguous IPv4 networks into the smallest
+    exact CIDR summary network.
+    """
+
+    try:
+        if not networks:
+            return {
+                "success": False,
+                "error": "Network list cannot be empty."
+            }
+
+        parsed_networks = []
+
+        for network in networks:
+            try:
+                parsed_network = ipaddress.ip_network(
+                    network,
+                    strict=True
+                )
+
+                if parsed_network.version != 4:
+                    return {
+                        "success": False,
+                        "error": "Only IPv4 networks are supported."
+                    }
+
+                parsed_networks.append(parsed_network)
+
+            except ValueError:
+                return {
+                    "success": False,
+                    "error": f"Invalid IPv4 network: {network}"
+                }
+
+        # Remove duplicate networks
+        parsed_networks = list(set(parsed_networks))
+
+        # Sort networks by network address
+        parsed_networks.sort(
+            key=lambda network: int(network.network_address)
+        )
+
+        # Check whether networks form one continuous address block
+        expected_start = parsed_networks[0].network_address
+
+        for network in parsed_networks:
+            if network.network_address != expected_start:
+                return {
+                    "success": False,
+                    "error": "Networks are not contiguous."
+                }
+
+            expected_start = network.broadcast_address + 1
+
+        first_address = parsed_networks[0].network_address
+        last_address = parsed_networks[-1].broadcast_address
+
+        # Find smallest CIDR covering the complete range
+        first_int = int(first_address)
+        last_int = int(last_address)
+
+        xor_value = first_int ^ last_int
+
+        if xor_value == 0:
+            prefix_length = 32
+        else:
+            prefix_length = 32 - xor_value.bit_length()
+
+        subnet_mask_int = (
+            (0xFFFFFFFF << (32 - prefix_length))
+            & 0xFFFFFFFF
+        )
+
+        summary_address_int = first_int & subnet_mask_int
+
+        summary_network = ipaddress.ip_network(
+            f"{ipaddress.IPv4Address(summary_address_int)}/{prefix_length}",
+            strict=True
+        )
+
+        # Exact coverage check
+        if (
+            summary_network.network_address != first_address
+            or summary_network.broadcast_address != last_address
+        ):
+            return {
+                "success": False,
+                "error": "Networks cannot be represented by one exact CIDR block."
+            }
+
+        return {
+            "success": True,
+            "summary": str(summary_network),
+            "prefix_length": summary_network.prefixlen,
+            "subnet_mask": str(summary_network.netmask),
+            "total_addresses": summary_network.num_addresses
+        }
+
+    except Exception as error:
+        return {
+            "success": False,
+            "error": str(error)
+        }
+
+
+# ============================================================
+# IP RANGE DIFFERENCE
+# ============================================================
+
+def get_ip_range_difference(main_start, main_end, used_start, used_end):
+    """
+    Calculate the IP ranges remaining after subtracting
+    the used IP range from the main IP range.
+    """
+
+    try:
+        # ----------------------------------------------------
+        # Convert input strings to IP address objects
+        # ----------------------------------------------------
+        main_start_ip = ipaddress.ip_address(main_start)
+        main_end_ip = ipaddress.ip_address(main_end)
+        used_start_ip = ipaddress.ip_address(used_start)
+        used_end_ip = ipaddress.ip_address(used_end)
+
+        # ----------------------------------------------------
+        # Check IP version
+        # ----------------------------------------------------
+        if main_start_ip.version != main_end_ip.version:
+            return {
+                "success": False,
+                "error": "Main range IP versions do not match."
+            }
+
+        if used_start_ip.version != used_end_ip.version:
+            return {
+                "success": False,
+                "error": "Used range IP versions do not match."
+            }
+
+        if main_start_ip.version != used_start_ip.version:
+            return {
+                "success": False,
+                "error": "Main and used IP versions do not match."
+            }
+
+        # ----------------------------------------------------
+        # Check range order
+        # ----------------------------------------------------
+        if main_start_ip > main_end_ip:
+            return {
+                "success": False,
+                "error": "Main range start IP cannot be greater than end IP."
+            }
+
+        if used_start_ip > used_end_ip:
+            return {
+                "success": False,
+                "error": "Used range start IP cannot be greater than end IP."
+            }
+
+        # ----------------------------------------------------
+        # Find overlap between Main and Used range
+        # ----------------------------------------------------
+        overlap_start = max(main_start_ip, used_start_ip)
+        overlap_end = min(main_end_ip, used_end_ip)
+
+        difference_ranges = []
+
+        # ----------------------------------------------------
+        # No overlap
+        # ----------------------------------------------------
+        if overlap_start > overlap_end:
+
+            difference_ranges.append({
+                "start_ip": str(main_start_ip),
+                "end_ip": str(main_end_ip)
+            })
+
+        else:
+
+            # ------------------------------------------------
+            # Left-side remaining range
+            # ------------------------------------------------
+            if main_start_ip < overlap_start:
+
+                difference_ranges.append({
+                    "start_ip": str(main_start_ip),
+                    "end_ip": str(overlap_start - 1)
+                })
+
+            # ------------------------------------------------
+            # Right-side remaining range
+            # ------------------------------------------------
+            if overlap_end < main_end_ip:
+
+                difference_ranges.append({
+                    "start_ip": str(overlap_end + 1),
+                    "end_ip": str(main_end_ip)
+                })
+
+        # ----------------------------------------------------
+        # Calculate remaining IP count
+        # ----------------------------------------------------
+        remaining_address_count = 0
+
+        for ip_range in difference_ranges:
+            start = ipaddress.ip_address(ip_range["start_ip"])
+            end = ipaddress.ip_address(ip_range["end_ip"])
+
+            remaining_address_count += (
+                int(end) - int(start) + 1
+            )
+
+        return {
+            "success": True,
+            "main_start_ip": str(main_start_ip),
+            "main_end_ip": str(main_end_ip),
+            "used_start_ip": str(used_start_ip),
+            "used_end_ip": str(used_end_ip),
+            "difference_ranges": difference_ranges,
+            "remaining_address_count": remaining_address_count
+        }
+
+    except ValueError as error:
+        return {
+            "success": False,
+            "error": str(error)
+        }
+
+    except Exception as error:
+        return {
+            "success": False,
+            "error": str(error)
+        }
+
+
+# ============================================================
+# IP RANGE SPLITTER
+# ============================================================
+
+def get_ip_range_splitter(start_ip, end_ip, chunk_size):
+    """
+    Split an IP range into smaller ranges based on chunk size.
+    """
+
+    try:
+        # ----------------------------------------------------
+        # Convert IP addresses
+        # ----------------------------------------------------
+        start = ipaddress.ip_address(start_ip)
+        end = ipaddress.ip_address(end_ip)
+
+        # ----------------------------------------------------
+        # Check IP version
+        # ----------------------------------------------------
+        if start.version != end.version:
+            return {
+                "success": False,
+                "error": "Start and end IP versions do not match."
+            }
+
+        # ----------------------------------------------------
+        # Check range order
+        # ----------------------------------------------------
+        if start > end:
+            return {
+                "success": False,
+                "error": "Start IP cannot be greater than end IP."
+            }
+
+        # ----------------------------------------------------
+        # Validate chunk size
+        # ----------------------------------------------------
+        if not isinstance(chunk_size, int) or isinstance(chunk_size, bool):
+            return {
+                "success": False,
+                "error": "Chunk size must be an integer."
+            }
+
+        if chunk_size <= 0:
+            return {
+                "success": False,
+                "error": "Chunk size must be greater than zero."
+            }
+
+        # ----------------------------------------------------
+        # Calculate total IP addresses
+        # ----------------------------------------------------
+        total_addresses = int(end) - int(start) + 1
+
+        # ----------------------------------------------------
+        # Split range
+        # ----------------------------------------------------
+        ranges = []
+
+        current_start = int(start)
+        end_int = int(end)
+
+        while current_start <= end_int:
+
+            current_end = min(
+                current_start + chunk_size - 1,
+                end_int
+            )
+
+            ranges.append({
+                "start_ip": str(
+                    ipaddress.ip_address(current_start)
+                ),
+                "end_ip": str(
+                    ipaddress.ip_address(current_end)
+                )
+            })
+
+            current_start = current_end + 1
+
+        return {
+            "success": True,
+            "start_ip": str(start),
+            "end_ip": str(end),
+            "chunk_size": chunk_size,
+            "total_addresses": total_addresses,
+            "range_count": len(ranges),
+            "ranges": ranges
+        }
+
+    except ValueError as error:
+        return {
+            "success": False,
+            "error": str(error)
+        }
+
+    except Exception as error:
+        return {
+            "success": False,
+            "error": str(error)
+        }
+
+    
+# ============================================================
+# SUBNET CAPACITY ANALYSIS
+# ============================================================
+
+def get_subnet_capacity_analysis(ip_cidr, used_count):
+    """
+    Analyze subnet capacity and calculate used and remaining
+    usable IP addresses.
+    """
+
+    try:
+        # ----------------------------------------------------
+        # Convert input to network
+        # ----------------------------------------------------
+        network = ipaddress.ip_network(ip_cidr, strict=False)
+
+        # ----------------------------------------------------
+        # IPv4 only
+        # ----------------------------------------------------
+        if network.version != 4:
+            return {
+                "success": False,
+                "error": "Only IPv4 networks are supported."
+            }
+
+        # ----------------------------------------------------
+        # Validate used_count
+        # ----------------------------------------------------
+        if not isinstance(used_count, int) or isinstance(used_count, bool):
+            return {
+                "success": False,
+                "error": "Used count must be an integer."
+            }
+
+        if used_count < 0:
+            return {
+                "success": False,
+                "error": "Used count cannot be negative."
+            }
+
+        # ----------------------------------------------------
+        # Calculate total addresses
+        # ----------------------------------------------------
+        total_addresses = network.num_addresses
+
+        # ----------------------------------------------------
+        # Calculate usable hosts
+        # ----------------------------------------------------
+        if network.prefixlen <= 30:
+            usable_hosts = total_addresses - 2
+        else:
+            usable_hosts = total_addresses
+
+        # ----------------------------------------------------
+        # Check used count
+        # ----------------------------------------------------
+        if used_count > usable_hosts:
+            return {
+                "success": False,
+                "error": "Used count cannot exceed usable host capacity."
+            }
+
+        # ----------------------------------------------------
+        # Remaining capacity
+        # ----------------------------------------------------
+        remaining_hosts = usable_hosts - used_count
+
+        # ----------------------------------------------------
+        # Utilization percentage
+        # ----------------------------------------------------
+        if usable_hosts == 0:
+            utilization_percentage = 0
+        else:
+            utilization_percentage = (
+                used_count / usable_hosts
+            ) * 100
+
+        return {
+            "success": True,
+            "network": str(network),
+            "prefix_length": network.prefixlen,
+            "total_addresses": total_addresses,
+            "usable_hosts": usable_hosts,
+            "used_hosts": used_count,
+            "remaining_hosts": remaining_hosts,
+            "utilization_percentage": round(
+                utilization_percentage, 2
+            )
+        }
+
+    except ValueError as error:
+        return {
+            "success": False,
+            "error": str(error)
+        }
+
+    except Exception as error:
+        return {
+            "success": False,
+            "error": str(error)
+        }
+
+
+# ============================================================
+# IP ALLOCATION PLANNER
+# ============================================================
+
+def get_ip_allocation_plan(ip_cidr, allocations):
+    """
+    Allocate sequential IP ranges from an IPv4 subnet
+    based on requested IP counts.
+
+    allocations format:
+    [
+        {"name": "IT", "count": 20},
+        {"name": "HR", "count": 10}
+    ]
+    """
+
+    try:
+        # ----------------------------------------------------
+        # Convert CIDR to network
+        # ----------------------------------------------------
+        network = ipaddress.ip_network(ip_cidr, strict=False)
+
+        # ----------------------------------------------------
+        # IPv4 only
+        # ----------------------------------------------------
+        if network.version != 4:
+            return {
+                "success": False,
+                "error": "Only IPv4 networks are supported."
+            }
+
+        # ----------------------------------------------------
+        # Validate allocations input
+        # ----------------------------------------------------
+        if not isinstance(allocations, list):
+            return {
+                "success": False,
+                "error": "Allocations must be a list."
+            }
+
+        if not allocations:
+            return {
+                "success": False,
+                "error": "Allocation list cannot be empty."
+            }
+
+        # ----------------------------------------------------
+        # Calculate usable capacity
+        # ----------------------------------------------------
+        total_addresses = network.num_addresses
+
+        if network.prefixlen <= 30:
+            usable_capacity = total_addresses - 2
+            first_available = int(network.network_address) + 1
+            last_available = int(network.broadcast_address) - 1
+        else:
+            usable_capacity = total_addresses
+            first_available = int(network.network_address)
+            last_available = int(network.broadcast_address)
+
+        # ----------------------------------------------------
+        # Validate allocation requests
+        # ----------------------------------------------------
+        total_requested = 0
+        names_seen = set()
+
+        for allocation in allocations:
+
+            if not isinstance(allocation, dict):
+                return {
+                    "success": False,
+                    "error": "Each allocation must be a dictionary."
+                }
+
+            if "name" not in allocation or "count" not in allocation:
+                return {
+                    "success": False,
+                    "error": "Each allocation must contain name and count."
+                }
+
+            name = allocation["name"]
+            count = allocation["count"]
+
+            if not isinstance(name, str) or not name.strip():
+                return {
+                    "success": False,
+                    "error": "Allocation name must be a non-empty string."
+                }
+
+            if name in names_seen:
+                return {
+                    "success": False,
+                    "error": f"Duplicate allocation name: {name}"
+                }
+
+            names_seen.add(name)
+
+            if not isinstance(count, int) or isinstance(count, bool):
+                return {
+                    "success": False,
+                    "error": f"Allocation count for {name} must be an integer."
+                }
+
+            if count <= 0:
+                return {
+                    "success": False,
+                    "error": f"Allocation count for {name} must be greater than zero."
+                }
+
+            total_requested += count
+
+        # ----------------------------------------------------
+        # Capacity check
+        # ----------------------------------------------------
+        if total_requested > usable_capacity:
+            return {
+                "success": False,
+                "error": "Insufficient IP capacity.",
+                "usable_capacity": usable_capacity,
+                "total_requested": total_requested,
+                "shortage": total_requested - usable_capacity
+            }
+
+        # ----------------------------------------------------
+        # Allocate ranges sequentially
+        # ----------------------------------------------------
+        allocation_plan = []
+
+        current_ip = first_available
+
+        for allocation in allocations:
+
+            name = allocation["name"]
+            count = allocation["count"]
+
+            allocation_start = current_ip
+            allocation_end = current_ip + count - 1
+
+            allocation_plan.append({
+                "name": name,
+                "count": count,
+                "start_ip": str(
+                    ipaddress.IPv4Address(allocation_start)
+                ),
+                "end_ip": str(
+                    ipaddress.IPv4Address(allocation_end)
+                )
+            })
+
+            current_ip = allocation_end + 1
+
+        # ----------------------------------------------------
+        # Remaining capacity
+        # ----------------------------------------------------
+        remaining_capacity = (
+            usable_capacity - total_requested
+        )
+
+        return {
+            "success": True,
+            "network": str(network),
+            "prefix_length": network.prefixlen,
+            "total_addresses": total_addresses,
+            "usable_capacity": usable_capacity,
+            "total_requested": total_requested,
+            "remaining_capacity": remaining_capacity,
+            "allocation_plan": allocation_plan
+        }
+
+    except ValueError as error:
+        return {
+            "success": False,
+            "error": str(error)
+        }
+
+    except Exception as error:
+        return {
+            "success": False,
+            "error": str(error)
+        }
+
+
+
+# ============================================================
+# DUPLICATE IP CHECKER
+# ============================================================
+
+def get_duplicate_ip_check(ip_list):
+    """
+    Check for duplicate IP addresses in a list.
+    """
+
+    try:
+        # ----------------------------------------------------
+        # Validate input type
+        # ----------------------------------------------------
+        if not isinstance(ip_list, list):
+            return {
+                "success": False,
+                "error": "IP list must be a list."
+            }
+
+        # ----------------------------------------------------
+        # Validate empty list
+        # ----------------------------------------------------
+        if not ip_list:
+            return {
+                "success": False,
+                "error": "IP list cannot be empty."
+            }
+
+        ip_counts = {}
+
+        # ----------------------------------------------------
+        # Validate and count IP addresses
+        # ----------------------------------------------------
+        for ip in ip_list:
+
+            if not isinstance(ip, str):
+                return {
+                    "success": False,
+                    "error": "Each IP address must be a string."
+                }
+
+            try:
+                parsed_ip = ipaddress.ip_address(ip)
+
+            except ValueError:
+                return {
+                    "success": False,
+                    "error": f"Invalid IP address: {ip}"
+                }
+
+            normalized_ip = str(parsed_ip)
+
+            if normalized_ip in ip_counts:
+                ip_counts[normalized_ip] += 1
+            else:
+                ip_counts[normalized_ip] = 1
+
+        # ----------------------------------------------------
+        # Find duplicate IPs
+        # ----------------------------------------------------
+        duplicate_ips = {}
+
+        for ip, count in ip_counts.items():
+
+            if count > 1:
+                duplicate_ips[ip] = count
+
+        # ----------------------------------------------------
+        # Return result
+        # ----------------------------------------------------
+        return {
+            "success": True,
+            "total_ips": len(ip_list),
+            "unique_ips": len(ip_counts),
+            "duplicate_count": len(duplicate_ips),
+            "has_duplicates": bool(duplicate_ips),
+            "duplicate_ips": duplicate_ips
+        }
+
+    except Exception as error:
+        return {
+            "success": False,
+            "error": str(error)
+        }
+
+
+
+# ============================================================
+# BULK IP LIST VALIDATOR / ANALYZER
+# ============================================================
+
+def get_bulk_ip_list_analysis(ip_list):
+    """
+    Validate and analyze a bulk list of IP addresses.
+    """
+
+    try:
+        # ----------------------------------------------------
+        # Validate input
+        # ----------------------------------------------------
+        if not isinstance(ip_list, list):
+            return {
+                "success": False,
+                "error": "IP list must be a list."
+            }
+
+        if not ip_list:
+            return {
+                "success": False,
+                "error": "IP list cannot be empty."
+            }
+
+        valid_ips = []
+        invalid_ips = []
+
+        ipv4_count = 0
+        ipv6_count = 0
+
+        seen_ips = set()
+        duplicate_ips = set()
+
+        # ----------------------------------------------------
+        # Analyze each IP
+        # ----------------------------------------------------
+        for ip in ip_list:
+
+            if not isinstance(ip, str):
+                invalid_ips.append({
+                    "input": ip,
+                    "error": "IP address must be a string."
+                })
+                continue
+
+            try:
+                parsed_ip = ipaddress.ip_address(ip)
+
+                normalized_ip = str(parsed_ip)
+
+                # Duplicate check
+                if parsed_ip in seen_ips:
+                    duplicate_ips.add(normalized_ip)
+
+                seen_ips.add(parsed_ip)
+
+                valid_ips.append(normalized_ip)
+
+                # Version count
+                if parsed_ip.version == 4:
+                    ipv4_count += 1
+                else:
+                    ipv6_count += 1
+
+            except ValueError as error:
+
+                invalid_ips.append({
+                    "input": ip,
+                    "error": str(error)
+                })
+
+        # ----------------------------------------------------
+        # Final counts
+        # ----------------------------------------------------
+        total_count = len(ip_list)
+        valid_count = len(valid_ips)
+        invalid_count = len(invalid_ips)
+
+        return {
+            "success": True,
+            "total_count": total_count,
+            "valid_count": valid_count,
+            "invalid_count": invalid_count,
+            "ipv4_count": ipv4_count,
+            "ipv6_count": ipv6_count,
+            "valid_ips": valid_ips,
+            "invalid_ips": invalid_ips,
+            "duplicate_ips": sorted(duplicate_ips)
+        }
+
+    except Exception as error:
+        return {
+            "success": False,
+            "error": str(error)
+        }
