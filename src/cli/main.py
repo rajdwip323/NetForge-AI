@@ -6,6 +6,15 @@ sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from core.network_utils import (
     analyze_ip_subnet,
+    check_ip_range_containment,
+    check_ip_range_overlap,
+    get_bulk_ip_list_analysis,
+    get_cidr_aggregation,
+    get_duplicate_ip_check,
+    get_ip_allocation_plan,
+    get_ip_range_difference,
+    get_ip_range_splitter,
+    get_subnet_capacity_analysis,
     validate_ip,
     get_ip_version,
     get_network_info,
@@ -40,6 +49,15 @@ def display_menu():
     print("9. Private / Public IP Check")
     print("10. IP Range Checker")
     print("11. IP Range Type Checker")
+    print("12. IP Range Overlap Checker")
+    print("13. IP Range Containment Checker")
+    print("14. CIDR Aggregation / Route Summarization")
+    print("15. IP Range Difference")
+    print("16. IP Range Splitter")
+    print("17. Subnet Capacity Analysis")
+    print("18. IP Allocation Planner")
+    print("19. Duplicate IP Checker")
+    print("20. Bulk IP List Validator / Analyzer")
     print("0. Exit")
     print("-" * 55)
 
@@ -475,8 +493,487 @@ def main():
         elif choice == "11":
             run_ip_range_type_checker()
 
+
+        elif choice == "12":
+                run_ip_range_overlap_checker()
+
+        elif choice == "13":
+            run_ip_range_containment_checker()
+
+        elif choice == "14":
+            run_cidr_aggregation()
+
+        elif choice == "15":
+            run_ip_range_difference()
+
+        elif choice == "16":
+            run_ip_range_splitter()
+
+        elif choice == "17":
+            run_subnet_capacity_analysis()
+
+        elif choice == "18":
+            run_ip_allocation_planner()
+
+        elif choice == "19":
+            run_duplicate_ip_checker()
+
+        elif choice == "20":
+            run_bulk_ip_list_analysis()
+
         else:
             display_error("Invalid choice. Please try again.")
+
+    
+
+def run_ip_range_overlap_checker():
+    print("\n" + "=" * 55)
+    print("          IP RANGE OVERLAP CHECKER")
+    print("=" * 55)
+
+    start1 = input("Enter Range 1 Start IP: ").strip()
+    end1 = input("Enter Range 1 End IP: ").strip()
+
+    start2 = input("Enter Range 2 Start IP: ").strip()
+    end2 = input("Enter Range 2 End IP: ").strip()
+
+    result = check_ip_range_overlap(
+        start1,
+        end1,
+        start2,
+        end2
+    )
+
+    if not result["success"]:
+        display_error(result["error"])
+        pause_before_menu()
+        return
+
+    print("\nIP Range Overlap Result")
+    print("-" * 55)
+    print(f"Range 1: {start1} - {end1}")
+    print(f"Range 2: {start2} - {end2}")
+    print(f"Overlap: {result['overlap']}")
+    print("-" * 55)
+
+    pause_before_menu()
+
+
+
+def run_ip_range_containment_checker():
+    print("\n" + "=" * 55)
+    print("        IP RANGE CONTAINMENT CHECKER")
+    print("=" * 55)
+
+    start1 = input("Enter Range 1 Start IP: ").strip()
+    end1 = input("Enter Range 1 End IP: ").strip()
+
+    start2 = input("Enter Range 2 Start IP: ").strip()
+    end2 = input("Enter Range 2 End IP: ").strip()
+
+    result = check_ip_range_containment(
+        start1,
+        end1,
+        start2,
+        end2
+    )
+
+    if not result["success"]:
+        display_error(result["error"])
+        pause_before_menu()
+        return
+
+    print("\nIP Range Containment Result")
+    print("-" * 55)
+    print(f"Range 1: {start1} - {end1}")
+    print(f"Range 2: {start2} - {end2}")
+    print(f"Contained: {result['contained']}")
+    print("-" * 55)
+
+    pause_before_menu()
+
+
+def run_cidr_aggregation():
+    print("\n" + "=" * 55)
+    print("       CIDR AGGREGATION / ROUTE SUMMARIZATION")
+    print("=" * 55)
+
+    try:
+        number_of_networks = int(
+            input("Enter number of networks: ").strip()
+        )
+    except ValueError:
+        display_error("Number of networks must be an integer.")
+        pause_before_menu()
+        return
+
+    if number_of_networks <= 0:
+        display_error("Number of networks must be greater than zero.")
+        pause_before_menu()
+        return
+
+    networks = []
+
+    print("\nEnter networks in CIDR format:")
+
+    for i in range(number_of_networks):
+        network = input(
+            f"Network {i + 1}: "
+        ).strip()
+        networks.append(network)
+
+    result = get_cidr_aggregation(networks)
+
+    if not result["success"]:
+        display_error(result["error"])
+        pause_before_menu()
+        return
+
+    print("\nCIDR Aggregation Result")
+    print("-" * 55)
+    print(f"Summary Network : {result['summary']}")
+    print(f"Prefix Length   : /{result['prefix_length']}")
+    print(f"Subnet Mask     : {result['subnet_mask']}")
+    print(f"Total Addresses : {result['total_addresses']}")
+    print("-" * 55)
+
+    pause_before_menu()
+
+
+def run_ip_range_difference():
+    print("\n" + "=" * 55)
+    print("              IP RANGE DIFFERENCE")
+    print("=" * 55)
+
+    main_start = input("Enter Main Range Start IP: ").strip()
+    main_end = input("Enter Main Range End IP: ").strip()
+
+    used_start = input("Enter Used Range Start IP: ").strip()
+    used_end = input("Enter Used Range End IP: ").strip()
+
+    result = get_ip_range_difference(
+        main_start,
+        main_end,
+        used_start,
+        used_end
+    )
+
+    if not result["success"]:
+        display_error(result["error"])
+        pause_before_menu()
+        return
+
+    print("\nIP Range Difference Result")
+    print("-" * 55)
+    print(
+        f"Main Range : "
+        f"{result['main_start_ip']} - {result['main_end_ip']}"
+    )
+    print(
+        f"Used Range : "
+        f"{result['used_start_ip']} - {result['used_end_ip']}"
+    )
+    print("-" * 55)
+
+    print("Remaining Ranges:")
+
+    for difference in result["difference_ranges"]:
+        print(
+            f"{difference['start_ip']} - "
+            f"{difference['end_ip']}"
+        )
+
+    print("-" * 55)
+    print(
+        f"Remaining Addresses: "
+        f"{result['remaining_address_count']}"
+    )
+    print("-" * 55)
+
+    pause_before_menu()
+
+
+def run_ip_range_splitter():
+    print("\n" + "=" * 55)
+    print("              IP RANGE SPLITTER")
+    print("=" * 55)
+
+    start_ip = input("Enter Start IP: ").strip()
+    end_ip = input("Enter End IP: ").strip()
+
+    try:
+        chunk_size = int(
+            input("Enter Chunk Size: ").strip()
+        )
+    except ValueError:
+        display_error("Chunk size must be an integer.")
+        pause_before_menu()
+        return
+
+    result = get_ip_range_splitter(
+        start_ip,
+        end_ip,
+        chunk_size
+    )
+
+    if not result["success"]:
+        display_error(result["error"])
+        pause_before_menu()
+        return
+
+    print("\nIP Range Splitter Result")
+    print("-" * 55)
+    print(f"Start IP        : {result['start_ip']}")
+    print(f"End IP          : {result['end_ip']}")
+    print(f"Chunk Size      : {result['chunk_size']}")
+    print(f"Total Addresses : {result['total_addresses']}")
+    print(f"Range Count     : {result['range_count']}")
+    print("-" * 55)
+
+    print("\nSplit Ranges")
+    print("-" * 55)
+
+    for ip_range in result["ranges"]:
+        print(
+            f"{ip_range['start_ip']} - "
+            f"{ip_range['end_ip']}"
+        )
+
+    print("-" * 55)
+
+    pause_before_menu()
+
+
+def run_subnet_capacity_analysis():
+    print("\n" + "=" * 55)
+    print("            SUBNET CAPACITY ANALYSIS")
+    print("=" * 55)
+
+    network = input("Enter Network (CIDR): ").strip()
+
+    try:
+        used_count = int(
+            input("Enter Used Host Count: ").strip()
+        )
+    except ValueError:
+        display_error("Used host count must be an integer.")
+        pause_before_menu()
+        return
+
+    result = get_subnet_capacity_analysis(
+        network,
+        used_count
+    )
+
+    if not result["success"]:
+        display_error(result["error"])
+        pause_before_menu()
+        return
+
+    print("\nSubnet Capacity Analysis Result")
+    print("-" * 55)
+    print(f"Network               : {result['network']}")
+    print(f"Prefix Length         : {result['prefix_length']}")
+    print(f"Total Addresses       : {result['total_addresses']}")
+    print(f"Usable Hosts          : {result['usable_hosts']}")
+    print(f"Used Hosts            : {result['used_hosts']}")
+    print(f"Remaining Hosts       : {result['remaining_hosts']}")
+    print(f"Utilization           : {result['utilization_percentage']}%")
+    print("-" * 55)
+
+    pause_before_menu()
+
+
+def run_ip_allocation_planner():
+    print("\n" + "=" * 55)
+    print("              IP ALLOCATION PLANNER")
+    print("=" * 55)
+
+    network = input("Enter Network (CIDR): ").strip()
+
+    try:
+        department_count = int(
+            input("Enter Number of Departments: ").strip()
+        )
+    except ValueError:
+        display_error("Department count must be an integer.")
+        pause_before_menu()
+        return
+
+    if department_count <= 0:
+        display_error("Department count must be greater than 0.")
+        pause_before_menu()
+        return
+
+    allocation_requests = []
+
+    for i in range(department_count):
+        print(f"\nDepartment {i + 1}")
+
+        name = input("Enter Department Name: ").strip()
+
+        try:
+            count = int(
+                input("Enter Required IP Count: ").strip()
+            )
+        except ValueError:
+            display_error("IP count must be an integer.")
+            pause_before_menu()
+            return
+
+        allocation_requests.append({
+            "name": name,
+            "count": count
+        })
+
+    result = get_ip_allocation_plan(
+        network,
+        allocation_requests
+    )
+
+    if not result["success"]:
+        display_error(result["error"])
+        pause_before_menu()
+        return
+
+    print("\nIP Allocation Plan")
+    print("-" * 55)
+    print(f"Network           : {result['network']}")
+    print(f"Prefix Length     : {result['prefix_length']}")
+    print(f"Total Addresses   : {result['total_addresses']}")
+    print(f"Usable Capacity   : {result['usable_capacity']}")
+    print(f"Total Requested   : {result['total_requested']}")
+    print(f"Remaining Capacity: {result['remaining_capacity']}")
+    print("-" * 55)
+
+    print("\nAllocations")
+    print("-" * 55)
+
+    for allocation in result["allocation_plan"]:
+        print(
+            f"{allocation['name']}: "
+            f"{allocation['start_ip']} - "
+            f"{allocation['end_ip']} "
+            f"({allocation['count']} IPs)"
+        )
+
+    print("-" * 55)
+
+    pause_before_menu()
+
+
+def run_duplicate_ip_checker():
+    print("\n" + "=" * 55)
+    print("              DUPLICATE IP CHECKER")
+    print("=" * 55)
+
+    try:
+        ip_count = int(
+            input("Enter Number of IP Addresses: ").strip()
+        )
+    except ValueError:
+        display_error("IP count must be an integer.")
+        pause_before_menu()
+        return
+
+    if ip_count <= 0:
+        display_error("IP count must be greater than 0.")
+        pause_before_menu()
+        return
+
+    ip_list = []
+
+    for i in range(ip_count):
+        ip = input(f"Enter IP {i + 1}: ").strip()
+        ip_list.append(ip)
+
+    result = get_duplicate_ip_check(ip_list)
+
+    if not result["success"]:
+        display_error(result["error"])
+        pause_before_menu()
+        return
+
+    print("\nDuplicate IP Check Result")
+    print("-" * 55)
+    print(f"Total IPs       : {result['total_ips']}")
+    print(f"Unique IPs      : {result['unique_ips']}")
+    print(f"Duplicate Count : {result['duplicate_count']}")
+    print(f"Has Duplicates  : {result['has_duplicates']}")
+    print("-" * 55)
+
+    if result["has_duplicates"]:
+        print("\nDuplicate IPs")
+        print("-" * 55)
+
+        for ip, count in result["duplicate_ips"].items():
+            print(f"{ip} → {count} times")
+    else:
+        print("\nNo duplicate IPs found.")
+
+    print("-" * 55)
+
+    pause_before_menu()
+
+
+def run_bulk_ip_list_analysis():
+    print("\n" + "=" * 55)
+    print("          BULK IP LIST VALIDATOR / ANALYZER")
+    print("=" * 55)
+
+    try:
+        ip_count = int(
+            input("Enter Number of IP Addresses: ").strip()
+        )
+    except ValueError:
+        display_error("IP count must be an integer.")
+        pause_before_menu()
+        return
+
+    if ip_count <= 0:
+        display_error("IP count must be greater than 0.")
+        pause_before_menu()
+        return
+
+    ip_list = []
+
+    for i in range(ip_count):
+        ip = input(f"Enter IP {i + 1}: ").strip()
+        ip_list.append(ip)
+
+    result = get_bulk_ip_list_analysis(ip_list)
+
+    if not result["success"]:
+        display_error(result["error"])
+        pause_before_menu()
+        return
+
+    print("\nBulk IP Analysis Result")
+    print("-" * 55)
+    print(f"Total IPs   : {result['total_count']}")
+    print(f"Valid IPs   : {result['valid_count']}")
+    print(f"Invalid IPs : {result['invalid_count']}")
+    print(f"IPv4 Count  : {result['ipv4_count']}")
+    print(f"IPv6 Count  : {result['ipv6_count']}")
+    print("-" * 55)
+
+    if result["invalid_ips"]:
+        print("\nInvalid IPs")
+        print("-" * 55)
+
+        for item in result["invalid_ips"]:
+            print(f"{item['input']} → {item['error']}")
+
+    if result["duplicate_ips"]:
+        print("\nDuplicate IPs")
+        print("-" * 55)
+
+        for ip in result["duplicate_ips"]:
+            print(ip)
+
+    print("-" * 55)
+
+    pause_before_menu()
 
 
 if __name__ == "__main__":
