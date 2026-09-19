@@ -1764,4 +1764,506 @@ def get_bulk_ip_list_analysis(ip_list):
         return {
             "success": False,
             "error": str(error)
+
         }
+
+
+def ping_host(host, timeout=2):
+    """
+    Check whether a host responds to a ping request.
+
+    Returns:
+        True  -> ping reply received
+        False -> no ping reply received
+    """
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            ["ping", "-n", "1", "-w", str(timeout * 1000), host],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+
+        return result.returncode == 0
+
+    except Exception:
+        return False
+
+
+def get_ping_latency(host, timeout=2):
+    """
+    Measure ping response time in milliseconds.
+
+    Returns:
+        float -> latency in milliseconds
+        None  -> no valid ping response
+    """
+    import subprocess
+    import re
+
+    try:
+        result = subprocess.run(
+            ["ping", "-n", "1", "-w", str(timeout * 1000), host],
+            capture_output=True,
+            text=True
+        )
+
+        if result.returncode != 0:
+            return None
+
+        match = re.search(r"time[=<]\s*(\d+)ms", result.stdout, re.IGNORECASE)
+
+        if match:
+            return float(match.group(1))
+
+        return None
+
+    except Exception:
+        return None
+
+
+def get_packet_loss(host, count=4, timeout=2):
+    """
+    Calculate packet loss percentage for a host.
+
+    Returns:
+        float -> packet loss percentage
+        None  -> ping command could not be executed
+    """
+    import subprocess
+    import re
+
+    try:
+        result = subprocess.run(
+            ["ping", "-n", str(count), "-w", str(timeout * 1000), host],
+            capture_output=True,
+            text=True
+        )
+
+        match = re.search(
+            r"Lost = (\d+)\s+\((\d+)% loss\)",
+            result.stdout,
+            re.IGNORECASE
+        )
+
+        if match:
+            return float(match.group(2))
+
+        return None
+
+    except Exception:
+        return None
+    
+
+def scan_subnet(network):
+    """
+    Scan a subnet and return hosts that respond to ping.
+
+    Returns:
+        list -> reachable IP addresses
+    """
+    import ipaddress
+
+    active_hosts = []
+
+    try:
+        network = ipaddress.ip_network(network, strict=False)
+
+        for host in network.hosts():
+            if ping_host(str(host)):
+                active_hosts.append(str(host))
+
+        return active_hosts
+
+    except ValueError:
+        return []
+
+
+def detect_active_devices(network):
+    """
+    Detect active devices in a subnet.
+
+    Returns:
+        list of dictionaries containing active host information.
+    """
+    import ipaddress
+
+    active_devices = []
+
+    try:
+        network = ipaddress.ip_network(network, strict=False)
+
+        for host in network.hosts():
+            host_str = str(host)
+
+            if ping_host(host_str):
+                latency = get_ping_latency(host_str)
+
+                active_devices.append({
+                    "ip": host_str,
+                    "reachable": True,
+                    "latency_ms": latency
+                })
+
+        return active_devices
+
+    except ValueError:
+        return []
+    
+
+def check_port(host, port, timeout=2):
+    """
+    Check whether a TCP port is accepting connections.
+
+    Returns:
+        True  -> TCP connection successful
+        False -> connection failed
+    """
+    import socket
+
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+
+    except (socket.timeout, socket.error, OSError):
+        return False
+
+
+def check_ssh_port(host, timeout=2):
+    """
+    Check whether the SSH TCP port is accessible.
+
+    Returns:
+        True  -> port 22 accepts TCP connections
+        False -> connection failed
+    """
+    return check_port(host, 22, timeout)
+
+
+def check_http_port(host, timeout=2):
+    """
+    Check whether the HTTP TCP port is accessible.
+
+    Returns:
+        True  -> port 80 accepts TCP connections
+        False -> connection failed
+    """
+    return check_port(host, 80, timeout)
+
+
+def check_https_port(host, timeout=2):
+    """
+    Check whether the HTTPS TCP port is accessible.
+
+    Returns:
+        True  -> port 443 accepts TCP connections
+        False -> connection failed
+    """
+    return check_port(host, 443, timeout)
+
+
+def check_dns_port(host, timeout=2):
+    """
+    Check whether the DNS TCP port is accessible.
+
+    Returns:
+        True  -> TCP port 53 accepts connections
+        False -> connection failed
+    """
+    return check_port(host, 53, timeout)
+
+
+def dns_forward_lookup(hostname):
+    """
+    Resolve a hostname to an IP address.
+
+    Returns:
+        str  -> resolved IP address
+        None -> resolution failed
+    """
+    import socket
+
+    try:
+        return socket.gethostbyname(hostname)
+
+    except socket.gaierror:
+        return None
+
+    
+def dns_reverse_lookup(ip_address):
+    """
+    Resolve an IP address to a hostname.
+
+    Returns:
+        str  -> resolved hostname
+        None -> resolution failed
+    """
+    import socket
+
+    try:
+        hostname, _, _ = socket.gethostbyaddr(ip_address)
+        return hostname
+
+    except (socket.herror, socket.gaierror):
+        return None
+    
+
+def test_dns(hostname):
+    """
+    Test basic DNS resolution for a hostname.
+
+    Returns:
+        dictionary containing DNS test information.
+    """
+    ip_address = dns_forward_lookup(hostname)
+
+    if ip_address is None:
+        return {
+            "hostname": hostname,
+            "resolved": False,
+            "ip": None,
+            "reverse_hostname": None
+        }
+
+    reverse_hostname = dns_reverse_lookup(ip_address)
+
+    return {
+        "hostname": hostname,
+        "resolved": True,
+        "ip": ip_address,
+        "reverse_hostname": reverse_hostname
+    }
+
+
+def validate_mac(mac_address):
+    """
+    Validate a MAC address.
+
+    Returns:
+        True  -> valid MAC address
+        False -> invalid MAC address
+    """
+    import re
+
+    pattern = r"^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$"
+
+    return bool(re.match(pattern, mac_address))
+
+
+def format_mac(mac_address):
+    """
+    Convert a valid MAC address to standard colon-separated format.
+
+    Returns:
+        str  -> formatted MAC address
+        None -> invalid MAC address
+    """
+    import re
+
+    if not validate_mac(mac_address):
+        return None
+
+    clean_mac = re.sub(r"[:-]", "", mac_address)
+
+    pairs = [
+        clean_mac[i:i + 2]
+        for i in range(0, 12, 2)
+    ]
+
+    return ":".join(pairs).upper()
+
+
+def get_mac_oui(mac_address):
+    """
+    Extract the OUI from a valid MAC address.
+
+    Returns:
+        str  -> OUI in standard format
+        None -> invalid MAC address
+    """
+    formatted_mac = format_mac(mac_address)
+
+    if formatted_mac is None:
+        return None
+
+    return formatted_mac[:8]
+
+
+def get_mac_vendor(mac_address):
+    """
+    Return vendor information for a MAC address based on
+    a small built-in OUI database.
+
+    Returns:
+        str  -> vendor name
+        None -> invalid MAC or unknown OUI
+    """
+    oui_database = {
+        "00:1A:2B": "Example Vendor",
+        "AA:BB:CC": "Example Network Device"
+    }
+
+    oui = get_mac_oui(mac_address)
+
+    if oui is None:
+        return None
+
+    return oui_database.get(oui)
+
+
+def check_gateway(gateway):
+    """
+    Check whether the network gateway is reachable.
+
+    Returns:
+        True  -> gateway responds to ping
+        False -> gateway is not reachable
+    """
+    return ping_host(gateway)
+
+
+def get_default_gateway():
+    """
+    Detect the default gateway from the system routing table.
+
+    Returns:
+        str  -> default gateway IP
+        None -> gateway could not be detected
+    """
+    import subprocess
+    import re
+
+    try:
+        result = subprocess.run(
+            ["ipconfig"],
+            capture_output=True,
+            text=True
+        )
+
+        match = re.search(
+            r"Default Gateway[ .:]*([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)",
+            result.stdout,
+            re.IGNORECASE
+        )
+
+        if match:
+            return match.group(1)
+
+        return None
+
+    except Exception:
+        return None
+    
+
+def diagnose_connectivity(test_host="8.8.8.8"):
+    """
+    Perform a basic network connectivity diagnosis.
+
+    Returns:
+        dictionary containing gateway and external host status.
+    """
+    gateway = get_default_gateway()
+
+    gateway_reachable = False
+
+    if gateway:
+        gateway_reachable = check_gateway(gateway)
+
+    internet_reachable = ping_host(test_host)
+
+    if gateway_reachable and internet_reachable:
+        status = "Connected"
+
+    elif gateway_reachable and not internet_reachable:
+        status = "Gateway reachable, external host unreachable"
+
+    elif not gateway_reachable:
+        status = "Gateway unreachable"
+
+    else:
+        status = "Unknown"
+
+    return {
+        "gateway": gateway,
+        "gateway_reachable": gateway_reachable,
+        "test_host": test_host,
+        "internet_reachable": internet_reachable,
+        "status": status
+    }
+
+
+def traceroute_host(host):
+    """
+    Trace the network route to a destination host.
+
+    Returns:
+        list -> traceroute output lines
+        []   -> traceroute failed
+    """
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            ["tracert", "-d", host],
+            capture_output=True,
+            text=True
+        )
+
+        if result.returncode != 0:
+            return []
+
+        return result.stdout.splitlines()
+
+    except Exception:
+        return []
+
+
+def run_network_diagnostics(
+    test_host="8.8.8.8",
+    dns_host="google.com"
+):
+    """
+    Run a combined network diagnostic test.
+
+    Returns:
+        dictionary containing gateway, connectivity,
+        DNS, and route information.
+    """
+    gateway = get_default_gateway()
+
+    gateway_reachable = False
+
+    if gateway:
+        gateway_reachable = check_gateway(gateway)
+
+    internet_reachable = ping_host(test_host)
+
+    dns_result = test_dns(dns_host)
+
+    route = traceroute_host(test_host)
+
+    if not gateway:
+        diagnosis = "Default gateway could not be detected."
+
+    elif not gateway_reachable:
+        diagnosis = "Gateway is unreachable."
+
+    elif not internet_reachable:
+        diagnosis = "Gateway is reachable, but external host is unreachable."
+
+    elif not dns_result["resolved"]:
+        diagnosis = "Network is reachable, but DNS resolution failed."
+
+    else:
+        diagnosis = "Basic network connectivity appears normal."
+
+    return {
+        "gateway": gateway,
+        "gateway_reachable": gateway_reachable,
+        "test_host": test_host,
+        "internet_reachable": internet_reachable,
+        "dns": dns_result,
+        "route_hops": route,
+        "diagnosis": diagnosis
+    }

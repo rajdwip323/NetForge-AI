@@ -14,7 +14,9 @@ from core.network_utils import (
     get_ip_allocation_plan,
     get_ip_range_difference,
     get_ip_range_splitter,
+    get_ping_latency,
     get_subnet_capacity_analysis,
+    ping_host,
     validate_ip,
     get_ip_version,
     get_network_info,
@@ -24,7 +26,29 @@ from core.network_utils import (
     get_ip_range,
     check_ip_type,
     check_ip_range,
-    check_ip_range_type
+    check_ip_range_type,
+    ping_host,
+    get_ping_latency,
+    get_packet_loss,
+    scan_subnet,
+    detect_active_devices,
+    check_port,
+    check_ssh_port,
+    check_http_port,
+    check_https_port,
+    check_dns_port,
+    dns_forward_lookup,
+    dns_reverse_lookup,
+    test_dns,
+    validate_mac,
+    format_mac,
+    get_mac_oui,
+    get_mac_vendor,
+    check_gateway,
+    get_default_gateway,
+    diagnose_connectivity,
+    traceroute_host,
+    run_network_diagnostics
 )
 
 
@@ -58,6 +82,21 @@ def display_menu():
     print("18. IP Allocation Planner")
     print("19. Duplicate IP Checker")
     print("20. Bulk IP List Validator / Analyzer")
+    print("21. Ping Host")
+    print("22. Ping Latency")
+    print("23. Packet Loss")
+    print("24. Subnet Scan")
+    print("25. Active Device Detection")
+    print("26. TCP Port Checker")
+    print("27. SSH Port Checker")
+    print("28. HTTP Port Checker")
+    print("29. HTTPS Port Checker")
+    print("30. DNS Port Checker")
+    print("31. DNS Forward Lookup")
+    print("32. DNS Reverse Lookup")
+    print("33. DNS Test")
+    print("34. MAC Address Tools")
+    print("35. Network Troubleshooting")
     print("0. Exit")
     print("-" * 55)
 
@@ -521,6 +560,52 @@ def main():
         elif choice == "20":
             run_bulk_ip_list_analysis()
 
+        elif choice == "21":
+                run_ping_host()
+
+        elif choice == "22":
+            run_ping_latency()
+
+        elif choice == "23":
+            run_packet_loss()
+
+        elif choice == "24":
+            run_subnet_scan()
+
+        elif choice == "25":
+            run_active_device_detection()
+
+        elif choice == "26":
+            run_tcp_port_checker()
+
+        elif choice == "27":
+            run_ssh_port_checker()
+
+        elif choice == "28":
+            run_http_port_checker()
+
+        elif choice == "29":
+            run_https_port_checker()
+
+        elif choice == "30":
+            run_dns_port_checker()
+
+        elif choice == "31":
+            run_dns_forward_lookup()
+
+        elif choice == "32":
+            run_dns_reverse_lookup()
+
+        elif choice == "33":
+            run_dns_test()
+
+        elif choice == "34":
+            run_mac_tools()
+
+        elif choice == "35":
+            run_network_troubleshooting()
+
+
         else:
             display_error("Invalid choice. Please try again.")
 
@@ -974,6 +1059,405 @@ def run_bulk_ip_list_analysis():
     print("-" * 55)
 
     pause_before_menu()
+
+
+def run_ping_host():
+    print("\n" + "=" * 55)
+    print("                     PING HOST")
+    print("=" * 55)
+
+    host = input("Enter Host / IP: ").strip()
+
+    result = ping_host(host)
+
+    print("\nPing Result")
+    print("-" * 55)
+    print(f"Host   : {host}")
+    print(f"Reachable: {result}")
+    print("-" * 55)
+
+    pause_before_menu()
+
+
+def run_ping_latency():
+    print("\n" + "=" * 55)
+    print("                  PING LATENCY")
+    print("=" * 55)
+
+    host = input("Enter Host / IP: ").strip()
+
+    result = get_ping_latency(host)
+
+    print("\nLatency Result")
+    print("-" * 55)
+    print(f"Host: {host}")
+
+    if result is None:
+        print("Latency: No valid ping response")
+    else:
+        print(f"Latency: {result} ms")
+
+    print("-" * 55)
+
+    pause_before_menu()
+
+
+def run_packet_loss():
+    print("\n" + "=" * 55)
+    print("                   PACKET LOSS")
+    print("=" * 55)
+
+    host = input("Enter Host / IP: ").strip()
+
+    try:
+        count = int(input("Enter Ping Count [default 4]: ").strip() or "4")
+    except ValueError:
+        display_error("Ping count must be an integer.")
+        pause_before_menu()
+        return
+
+    result = get_packet_loss(host, count)
+
+    print("\nPacket Loss Result")
+    print("-" * 55)
+    print(f"Host        : {host}")
+    print(f"Ping Count  : {count}")
+    print(f"Packet Loss : {result}%")
+    print("-" * 55)
+
+    pause_before_menu()
+
+
+def run_subnet_scan():
+    print("\n" + "=" * 55)
+    print("                    SUBNET SCAN")
+    print("=" * 55)
+
+    network = input("Enter Network (CIDR): ").strip()
+
+    result = scan_subnet(network)
+
+    print("\nSubnet Scan Result")
+    print("-" * 55)
+    print(f"Network: {network}")
+
+    if result:
+        print("\nReachable Hosts:")
+        for host in result:
+            print(host)
+    else:
+        print("No reachable hosts found.")
+
+    print("-" * 55)
+
+    pause_before_menu()
+
+
+def run_active_device_detection():
+    print("\n" + "=" * 55)
+    print("              ACTIVE DEVICE DETECTION")
+    print("=" * 55)
+
+    network = input("Enter Network (CIDR): ").strip()
+
+    result = detect_active_devices(network)
+
+    print("\nActive Devices")
+    print("-" * 70)
+
+    if result:
+        for device in result:
+            print(
+                f"IP: {device['ip']:<18} "
+                f"Reachable: {device['reachable']!s:<6} "
+                f"Latency: {device['latency_ms']} ms"
+            )
+    else:
+        print("No active devices found.")
+
+    print("-" * 70)
+
+    pause_before_menu()
+
+
+def run_tcp_port_checker():
+    print("\n" + "=" * 55)
+    print("                  TCP PORT CHECKER")
+    print("=" * 55)
+
+    host = input("Enter Host / IP: ").strip()
+
+    try:
+        port = int(input("Enter Port: ").strip())
+    except ValueError:
+        display_error("Port must be an integer.")
+        pause_before_menu()
+        return
+
+    result = check_port(host, port)
+
+    print("\nTCP Port Result")
+    print("-" * 55)
+    print(f"Host: {host}")
+    print(f"Port: {port}")
+    print(f"Accessible: {result}")
+    print("-" * 55)
+
+    pause_before_menu()
+
+
+def run_ssh_port_checker():
+    print("\n" + "=" * 55)
+    print("                   SSH PORT CHECKER")
+    print("=" * 55)
+
+    host = input("Enter Host / IP: ").strip()
+
+    result = check_ssh_port(host)
+
+    print("\nSSH Port Result")
+    print("-" * 55)
+    print(f"Host: {host}")
+    print("Port: 22")
+    print(f"Accessible: {result}")
+    print("-" * 55)
+
+    pause_before_menu()
+
+
+def run_http_port_checker():
+    print("\n" + "=" * 55)
+    print("                  HTTP PORT CHECKER")
+    print("=" * 55)
+
+    host = input("Enter Host / IP: ").strip()
+
+    result = check_http_port(host)
+
+    print("\nHTTP Port Result")
+    print("-" * 55)
+    print(f"Host: {host}")
+    print("Port: 80")
+    print(f"Accessible: {result}")
+    print("-" * 55)
+
+    pause_before_menu()
+
+
+def run_https_port_checker():
+    print("\n" + "=" * 55)
+    print("                 HTTPS PORT CHECKER")
+    print("=" * 55)
+
+    host = input("Enter Host / IP: ").strip()
+
+    result = check_https_port(host)
+
+    print("\nHTTPS Port Result")
+    print("-" * 55)
+    print(f"Host: {host}")
+    print("Port: 443")
+    print(f"Accessible: {result}")
+    print("-" * 55)
+
+    pause_before_menu()
+
+
+def run_dns_port_checker():
+    print("\n" + "=" * 55)
+    print("                  DNS PORT CHECKER")
+    print("=" * 55)
+
+    host = input("Enter DNS Server / Host: ").strip()
+
+    result = check_dns_port(host)
+
+    print("\nDNS Port Result")
+    print("-" * 55)
+    print(f"Host: {host}")
+    print("Port: 53")
+    print(f"Accessible: {result}")
+    print("-" * 55)
+
+    pause_before_menu()
+
+
+def run_dns_forward_lookup():
+    print("\n" + "=" * 55)
+    print("                  DNS FORWARD LOOKUP")
+    print("=" * 55)
+
+    hostname = input("Enter Hostname: ").strip()
+
+    result = dns_forward_lookup(hostname)
+
+    print("\nForward Lookup Result")
+    print("-" * 55)
+    print(f"Hostname: {hostname}")
+    print(f"IP Address: {result}")
+    print("-" * 55)
+
+    pause_before_menu()
+
+
+def run_dns_reverse_lookup():
+    print("\n" + "=" * 55)
+    print("                  DNS REVERSE LOOKUP")
+    print("=" * 55)
+
+    ip_address = input("Enter IP Address: ").strip()
+
+    result = dns_reverse_lookup(ip_address)
+
+    print("\nReverse Lookup Result")
+    print("-" * 55)
+    print(f"IP Address: {ip_address}")
+    print(f"Hostname: {result}")
+    print("-" * 55)
+
+    pause_before_menu()
+
+
+def run_dns_test():
+    print("\n" + "=" * 55)
+    print("                       DNS TEST")
+    print("=" * 55)
+
+    hostname = input("Enter Hostname: ").strip()
+
+    result = test_dns(hostname)
+
+    print("\nDNS Test Result")
+    print("-" * 55)
+    print(f"Hostname          : {result['hostname']}")
+    print(f"Resolved          : {result['resolved']}")
+    print(f"IP Address        : {result['ip']}")
+    print(f"Reverse Hostname  : {result['reverse_hostname']}")
+    print("-" * 55)
+
+    pause_before_menu()
+
+
+def run_mac_tools():
+    while True:
+        print("\n" + "=" * 55)
+        print("                  MAC ADDRESS TOOLS")
+        print("=" * 55)
+        print("1. Validate MAC")
+        print("2. Format MAC")
+        print("3. Get OUI")
+        print("4. Get Vendor")
+        print("0. Back to Main Menu")
+        print("-" * 55)
+
+        choice = input("Enter your choice: ").strip()
+
+        if choice == "0":
+            break
+
+        elif choice == "1":
+            mac = input("Enter MAC Address: ").strip()
+            print(f"\nValid MAC: {validate_mac(mac)}")
+            pause_before_menu()
+
+        elif choice == "2":
+            mac = input("Enter MAC Address: ").strip()
+            print(f"\nFormatted MAC: {format_mac(mac)}")
+            pause_before_menu()
+
+        elif choice == "3":
+            mac = input("Enter MAC Address: ").strip()
+            print(f"\nOUI: {get_mac_oui(mac)}")
+            pause_before_menu()
+
+        elif choice == "4":
+            mac = input("Enter MAC Address: ").strip()
+            print(f"\nVendor: {get_mac_vendor(mac)}")
+            pause_before_menu()
+
+        else:
+            display_error("Invalid MAC tool choice.")
+
+
+def run_network_troubleshooting():
+    while True:
+        print("\n" + "=" * 55)
+        print("             NETWORK TROUBLESHOOTING")
+        print("=" * 55)
+        print("1. Gateway Check")
+        print("2. Detect Default Gateway")
+        print("3. Connectivity Diagnosis")
+        print("4. Traceroute")
+        print("5. Full Network Diagnostics")
+        print("0. Back to Main Menu")
+        print("-" * 55)
+
+        choice = input("Enter your choice: ").strip()
+
+        if choice == "0":
+            break
+
+        elif choice == "1":
+            gateway = input("Enter Gateway IP: ").strip()
+            result = check_gateway(gateway)
+            print(f"\nGateway Reachable: {result}")
+            pause_before_menu()
+
+        elif choice == "2":
+            result = get_default_gateway()
+            print(f"\nDefault Gateway: {result}")
+            pause_before_menu()
+
+        elif choice == "3":
+            result = diagnose_connectivity()
+
+            print("\nConnectivity Diagnosis")
+            print("-" * 55)
+            print(f"Gateway: {result['gateway']}")
+            print(f"Gateway Reachable: {result['gateway_reachable']}")
+            print(f"Test Host: {result['test_host']}")
+            print(f"Internet Reachable: {result['internet_reachable']}")
+            print(f"Diagnosis: {result['status']}")
+            print("-" * 55)
+
+            pause_before_menu()
+
+        elif choice == "4":
+            host = input("Enter Host / IP: ").strip()
+            result = traceroute_host(host)
+
+            print("\nTraceroute Result")
+            print("-" * 55)
+
+            if result:
+                for line in result:
+                    print(line)
+            else:
+                print("Traceroute failed or returned no output.")
+
+            print("-" * 55)
+            pause_before_menu()
+
+        elif choice == "5":
+            result = run_network_diagnostics()
+
+            print("\nFull Network Diagnostics")
+            print("-" * 70)
+            print(f"Gateway: {result['gateway']}")
+            print(f"Gateway Reachable: {result['gateway_reachable']}")
+            print(f"Test Host: {result['test_host']}")
+            print(f"Internet Reachable: {result['internet_reachable']}")
+            print(f"DNS Host: {result['dns']['hostname']}")
+            print(f"DNS Resolved: {result['dns']['resolved']}")
+            print(f"Resolved IP: {result['dns']['ip']}")
+            print(f"Diagnosis: {result['diagnosis']}")
+            print(f"Traceroute Lines: {len(result['route_hops'])}")
+            print("-" * 70)
+
+            pause_before_menu()
+
+        else:
+            display_error("Invalid troubleshooting choice.")
 
 
 if __name__ == "__main__":
