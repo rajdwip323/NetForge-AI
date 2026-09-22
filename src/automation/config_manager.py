@@ -216,6 +216,281 @@ def apply_config(client, commands, dry_run=False):
     }
 
 
+def parse_interface_description(output, interface):
+    """
+    Parse Cisco 'show interfaces description' output
+    for a specific interface.
+
+    Returns:
+        success      -> Parsing operation successful or not
+        interface    -> Normalized interface name
+        status       -> Actual interface status
+        description  -> Actual interface description
+        error        -> Error message if parsing fails
+    """
+
+    # Validate interface input
+    if not isinstance(interface, str) or not interface.strip():
+        return {
+            "success": False,
+            "interface": interface,
+            "status": None,
+            "description": None,
+            "error": "Invalid interface name"
+        }
+
+    # Validate command output
+    if not isinstance(output, str):
+        return {
+            "success": False,
+            "interface": interface,
+            "status": None,
+            "description": None,
+            "error": "Invalid command output"
+        }
+
+    if not output.strip():
+        return {
+            "success": False,
+            "interface": interface,
+            "status": None,
+            "description": None,
+            "error": "Empty command output"
+        }
+
+    def normalize_interface_name(name):
+        """
+        Normalize common Cisco interface name formats.
+
+        Example:
+        GigabitEthernet0/1 -> Gi0/1
+        FastEthernet0/1   -> Fa0/1
+        TenGigabitEthernet0/1 -> Te0/1
+        """
+
+        name = name.strip()
+
+        prefixes = {
+            "gigabitethernet": "Gi",
+            "fastethernet": "Fa",
+            "tengigabitethernet": "Te"
+        }
+
+        lower_name = name.lower()
+
+        for prefix, abbreviation in prefixes.items():
+            if lower_name.startswith(prefix):
+                return abbreviation + name[len(prefix):]
+
+        return name
+
+    target_interface = normalize_interface_name(interface)
+
+    for line in output.splitlines():
+
+        line = line.strip()
+
+        if not line:
+            continue
+
+        # Skip header/separator lines
+        if line.lower().startswith("interface"):
+            continue
+
+        # Cisco show interfaces description format:
+        #
+        # Gi0/1    up          up       UPLINK_TO_CORE
+        # Gi0/2    admin down  down     USER_ACCESS
+        #
+        import re
+
+        match = re.match(
+            r"^(?P<interface>\S+)\s+"
+            r"(?P<status>admin(?:istratively)?\s+down|up|down)\s+"
+            r"(?P<protocol>administratively\s+down|up|down)\s*"
+            r"(?P<description>.*)$",
+            line,
+            re.IGNORECASE
+        )
+
+        if not match:
+
+            # Check whether this malformed line belongs
+            # to the requested interface.
+            first_word = line.split()[0] if line.split() else ""
+
+            if normalize_interface_name(first_word).lower() == target_interface.lower():
+                return {
+                    "success": False,
+                    "interface": target_interface,
+                    "status": None,
+                    "description": None,
+                    "error": "Unable to parse interface output"
+                }
+
+            continue
+
+        actual_interface = normalize_interface_name(
+            match.group("interface")
+        )
+
+        if actual_interface.lower() != target_interface.lower():
+            continue
+
+        actual_status = " ".join(
+            match.group("status").lower().split()
+        )
+
+        actual_description = match.group("description").strip()
+
+        return {
+            "success": True,
+            "interface": actual_interface,
+            "status": actual_status,
+            "description": actual_description,
+            "error": None
+        }
+
+    return {
+        "success": False,
+        "interface": target_interface,
+        "status": None,
+        "description": None,
+        "error": "Interface not found"
+    }
+
+
+
+def verify_interface(
+    client,
+    interface,
+    expected_description,
+    expected_status
+):
+    """
+    Verify an interface's description and operational status.
+
+    Workflow:
+    Validate → Execute show command → Parse → Compare → Verify
+
+    This function does not modify the device.
+    """
+
+    # Validate interface
+    if not isinstance(interface, str) or not interface.strip():
+        return {
+            "success": False,
+            "verified": False,
+            "interface": interface,
+            "expected_description": expected_description,
+            "actual_description": None,
+            "expected_status": expected_status,
+            "actual_status": None,
+            "error": "Invalid interface name"
+        }
+
+    # Validate expected description
+    if not isinstance(expected_description, str):
+        return {
+            "success": False,
+            "verified": False,
+            "interface": interface,
+            "expected_description": expected_description,
+            "actual_description": None,
+            "expected_status": expected_status,
+            "actual_status": None,
+            "error": "Invalid expected interface description"
+        }
+
+    # Validate expected status
+    if expected_status not in ["up", "down"]:
+        return {
+            "success": False,
+            "verified": False,
+            "interface": interface,
+            "expected_description": expected_description,
+            "actual_description": None,
+            "expected_status": expected_status,
+            "actual_status": None,
+            "error": "Invalid expected interface status"
+        }
+
+    # Execute verification command
+    result = execute_command(
+        client,
+        "show interfaces description"
+    )
+
+    if not result["success"]:
+        return {
+            "success": False,
+            "verified": False,
+            "interface": interface,
+            "expected_description": expected_description,
+            "actual_description": None,
+            "expected_status": expected_status,
+            "actual_status": None,
+            "error": result["error"]
+        }
+
+    # Parse device output
+    parsed = parse_interface_description(
+        result["output"],
+        interface
+    )
+
+    if not parsed["success"]:
+        return {
+            "success": False,
+            "verified": False,
+            "interface": interface,
+            "expected_description": expected_description,
+            "actual_description": parsed["description"],
+            "expected_status": expected_status,
+            "actual_status": parsed["status"],
+            "error": parsed["error"]
+        }
+
+    # Extract actual values
+    actual_description = parsed["description"]
+    actual_status = parsed["status"]
+
+    # Compare expected vs actual
+    description_match = (
+        actual_description == expected_description
+    )
+
+    status_match = (
+        actual_status == expected_status
+    )
+
+    # Both values match
+    if description_match and status_match:
+        return {
+            "success": True,
+            "verified": True,
+            "interface": interface,
+            "expected_description": expected_description,
+            "actual_description": actual_description,
+            "expected_status": expected_status,
+            "actual_status": actual_status,
+            "error": None
+        }
+
+    # Device responded successfully,
+    # but actual configuration does not match expected.
+    return {
+        "success": True,
+        "verified": False,
+        "interface": interface,
+        "expected_description": expected_description,
+        "actual_description": actual_description,
+        "expected_status": expected_status,
+        "actual_status": actual_status,
+        "error": "Interface verification failed"
+    }
+
+
 def verify_vlan(client, vlan_id, expected_name):
     """
     Verify that a VLAN exists on the device and
