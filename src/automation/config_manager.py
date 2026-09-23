@@ -491,6 +491,135 @@ def verify_interface(
     }
 
 
+
+def configure_interface(
+    client,
+    interface,
+    description,
+    status,
+    dry_run=False
+):
+    """
+    Complete interface configuration workflow.
+
+    Workflow:
+    Validate → Generate → Preview → Apply → Verify
+
+    If dry_run is True:
+    Validate → Generate → Preview
+
+    No device changes are made during dry run.
+    """
+
+    config = {
+        "interface": interface,
+        "description": description,
+        "status": status
+    }
+
+    # Step 1: Validate + Generate
+    generated = generate_config_commands("interface", config)
+
+    if not generated["success"]:
+        return {
+            "success": False,
+            "dry_run": dry_run,
+            "interface": interface,
+            "description": description,
+            "status": status,
+            "commands": [],
+            "apply": None,
+            "verification": None,
+            "error": generated["error"]
+        }
+
+    commands = generated["commands"]
+
+    # Step 2: Preview
+    preview = dry_run_config("interface", config)
+
+    if not preview["success"]:
+        return {
+            "success": False,
+            "dry_run": dry_run,
+            "interface": interface,
+            "description": description,
+            "status": status,
+            "commands": commands,
+            "apply": None,
+            "verification": None,
+            "error": preview["error"]
+        }
+
+    # Dry-run stops after preview
+    if dry_run:
+        return {
+            "success": True,
+            "dry_run": True,
+            "interface": interface,
+            "description": description,
+            "status": status,
+            "commands": preview["commands"],
+            "apply": None,
+            "verification": None,
+            "error": ""
+        }
+
+    # Step 3: Apply
+    apply_result = apply_config(
+        client,
+        commands,
+        dry_run=False
+    )
+
+    if not apply_result["success"]:
+        return {
+            "success": False,
+            "dry_run": False,
+            "interface": interface,
+            "description": description,
+            "status": status,
+            "commands": commands,
+            "apply": apply_result,
+            "verification": None,
+            "error": apply_result["error"]
+        }
+
+    # Step 4: Verify
+    verification = verify_interface(
+        client,
+        interface,
+        description,
+        status
+    )
+
+    if not verification["success"] or not verification["verified"]:
+        return {
+            "success": False,
+            "dry_run": False,
+            "interface": interface,
+            "description": description,
+            "status": status,
+            "commands": commands,
+            "apply": apply_result,
+            "verification": verification,
+            "error": verification["error"]
+        }
+
+    # Complete workflow successful
+    return {
+        "success": True,
+        "dry_run": False,
+        "interface": interface,
+        "description": description,
+        "status": status,
+        "commands": commands,
+        "apply": apply_result,
+        "verification": verification,
+        "error": ""
+    }
+
+
 def verify_vlan(client, vlan_id, expected_name):
     """
     Verify that a VLAN exists on the device and
