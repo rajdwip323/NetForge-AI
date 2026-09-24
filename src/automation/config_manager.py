@@ -73,6 +73,7 @@ def generate_config_commands(config_type, config):
         ip = config.get("ip")
         mask = config.get("mask")
 
+        # Validate interface
         if not interface or not isinstance(interface, str):
             return {
                 "success": False,
@@ -80,6 +81,7 @@ def generate_config_commands(config_type, config):
                 "error": "Invalid interface name"
             }
 
+        # Validate IP address
         if not ip or not isinstance(ip, str):
             return {
                 "success": False,
@@ -87,7 +89,29 @@ def generate_config_commands(config_type, config):
                 "error": "Invalid IP address"
             }
 
+        try:
+            import ipaddress
+            ipaddress.ip_address(ip)
+        except ValueError:
+            return {
+                "success": False,
+                "commands": [],
+                "error": "Invalid IP address"
+            }
+
+        # Validate subnet mask
         if not mask or not isinstance(mask, str):
+            return {
+                "success": False,
+                "commands": [],
+                "error": "Invalid subnet mask"
+            }
+
+        try:
+            ipaddress.IPv4Network(
+                f"0.0.0.0/{mask}"
+            )
+        except ValueError:
             return {
                 "success": False,
                 "commands": [],
