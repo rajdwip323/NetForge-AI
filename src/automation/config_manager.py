@@ -1,4 +1,6 @@
+import ipaddress
 from ssh.ssh_manager import execute_command
+
 
 
 def generate_config_commands(config_type, config):
@@ -395,7 +397,7 @@ def verify_interface(
     Verify an interface's description and operational status.
 
     Workflow:
-    Validate → Execute show command → Parse → Compare → Verify
+    Validate â†’ Execute show command â†’ Parse â†’ Compare â†’ Verify
 
     This function does not modify the device.
     """
@@ -516,6 +518,363 @@ def verify_interface(
 
 
 
+def parse_interface_ip(output, interface):
+    """
+    Parse interface IP information from device command output.
+
+    Returns:
+        success
+        interface
+        ip
+        mask
+        error
+    """
+
+    if not isinstance(interface, str) or not interface.strip():
+        return {
+            "success": False,
+            "interface": interface,
+            "ip": None,
+            "mask": None,
+            "error": "Invalid interface name"
+        }
+
+    if not isinstance(output, str):
+        return {
+            "success": False,
+            "interface": interface,
+            "ip": None,
+            "mask": None,
+            "error": "Invalid command output"
+        }
+
+    if not output.strip():
+        return {
+            "success": False,
+            "interface": interface,
+            "ip": None,
+            "mask": None,
+            "error": "Empty command output"
+        }
+
+    def normalize_interface_name(name):
+        name = name.strip()
+
+        prefixes = {
+            "gigabitethernet": "Gi",
+            "fastethernet": "Fa",
+            "tengigabitethernet": "Te"
+        }
+
+        lower_name = name.lower()
+
+        for prefix, abbreviation in prefixes.items():
+            if lower_name.startswith(prefix):
+                return abbreviation + name[len(prefix):]
+
+        return name
+
+    target_interface = normalize_interface_name(interface)
+
+    import re
+
+    for line in output.splitlines():
+        line = line.strip()
+
+        if not line:
+            continue
+
+        match = re.match(
+            r"^(?P<interface>\S+)\s+"
+            r"(?P<ip>\d+\.\d+\.\d+\.\d+)\s+"
+            r"(?P<mask>\d+\.\d+\.\d+\.\d+)",
+            line
+        )
+
+        if not match:
+            continue
+
+        actual_interface = normalize_interface_name(
+            match.group("interface")
+        )
+
+        if actual_interface.lower() != target_interface.lower():
+            continue
+
+        return {
+            "success": True,
+            "interface": actual_interface,
+            "ip": match.group("ip"),
+            "mask": match.group("mask"),
+            "error": None
+        }
+
+    return {
+        "success": False,
+        "interface": target_interface,
+        "ip": None,
+        "mask": None,
+        "error": "Interface IP information not found"
+    }
+
+
+def verify_ip_configuration(
+    client,
+    interface,
+    expected_ip,
+    expected_mask
+):
+    """
+    Verify IP configuration on a network device.
+
+    Compares expected IP/mask with the parsed device output.
+    """
+
+    # Validate interface
+    if not isinstance(interface, str) or not interface.strip():
+        return {
+            "success": False,
+            "verified": False,
+            "interface": interface,
+            "expected_ip": expected_ip,
+            "actual_ip": None,
+            "expected_mask": expected_mask,
+            "actual_mask": None,
+            "error": "Invalid interface"
+        }
+
+    # Validate expected IP
+    try:
+        ipaddress.ip_address(expected_ip)
+    except ValueError:
+        return {
+            "success": False,
+            "verified": False,
+            "interface": interface,
+            "expected_ip": expected_ip,
+            "actual_ip": None,
+            "expected_mask": expected_mask,
+            "actual_mask": None,
+            "error": "Invalid IP address"
+        }
+
+    # Validate expected mask
+    try:
+        ipaddress.IPv4Network(
+            f"0.0.0.0/{expected_mask}"
+        )
+    except ValueError:
+        return {
+            "success": False,
+            "verified": False,
+            "interface": interface,
+            "expected_ip": expected_ip,
+            "actual_ip": None,
+            "expected_mask": expected_mask,
+            "actual_mask": None,
+            "error": "Invalid subnet mask"
+        }
+
+    # Get device IP information
+    result = execute_command(
+        client,
+        "show ip interface brief"
+    )
+
+    if not result["success"]:
+        return {
+            "success": False,
+            "verified": False,
+            "interface": interface,
+            "expected_ip": expected_ip,
+            "actual_ip": None,
+            "expected_mask": expected_mask,
+            "actual_mask": None,
+            "error": result["error"]
+        }
+
+    # Parse interface IP information
+    parsed = parse_interface_ip(
+        result["output"],
+        interface
+    )
+
+    if not parsed["success"]:
+        return {
+            "success": False,
+            "verified": False,
+            "interface": interface,
+            "expected_ip": expected_ip,
+            "actual_ip": parsed.get("ip"),
+            "expected_mask": expected_mask,
+            "actual_mask": parsed.get("mask"),
+            "error": parsed["error"]
+        }
+
+    actual_ip = parsed["ip"]
+    actual_mask = parsed["mask"]
+
+    # Compare expected vs actual
+    ip_match = actual_ip == expected_ip
+    mask_match = actual_mask == expected_mask
+
+    if ip_match and mask_match:
+        return {
+            "success": True,
+            "verified": True,
+            "interface": interface,
+            "expected_ip": expected_ip,
+            "actual_ip": actual_ip,
+            "expected_mask": expected_mask,
+            "actual_mask": actual_mask,
+            "error": None
+        }
+
+    # Device responded, but state does not match
+    return {
+        "success": True,
+        "verified": False,
+        "interface": interface,
+        "expected_ip": expected_ip,
+        "actual_ip": actual_ip,
+        "expected_mask": expected_mask,
+        "actual_mask": actual_mask,
+        "error": "IP configuration verification failed"
+    }
+
+
+def configure_ip(
+    client,
+    interface,
+    ip,
+    mask,
+    dry_run=False
+):
+    """
+    Complete IP configuration workflow.
+
+    Workflow:
+        Validate
+        -> Generate
+        -> Preview
+        -> Apply
+        -> Verify
+    """
+
+    config = {
+        "interface": interface,
+        "ip": ip,
+        "mask": mask
+    }
+
+    # Step 1: Validate + Generate
+    generated = generate_config_commands(
+        "ip",
+        config
+    )
+
+    if not generated["success"]:
+        return {
+            "success": False,
+            "dry_run": dry_run,
+            "interface": interface,
+            "ip": ip,
+            "mask": mask,
+            "commands": [],
+            "apply": None,
+            "verification": None,
+            "error": generated["error"]
+        }
+
+    commands = generated["commands"]
+
+    # Step 2: Preview
+    preview = dry_run_config(
+        "ip",
+        config
+    )
+
+    if not preview["success"]:
+        return {
+            "success": False,
+            "dry_run": dry_run,
+            "interface": interface,
+            "ip": ip,
+            "mask": mask,
+            "commands": commands,
+            "apply": None,
+            "verification": None,
+            "error": preview["error"]
+        }
+
+    # Dry-run stops after preview
+    if dry_run:
+        return {
+            "success": True,
+            "dry_run": True,
+            "interface": interface,
+            "ip": ip,
+            "mask": mask,
+            "commands": preview["commands"],
+            "apply": None,
+            "verification": None,
+            "error": ""
+        }
+
+    # Step 3: Apply
+    apply_result = apply_config(
+        client,
+        commands,
+        dry_run=False
+    )
+
+    if not apply_result["success"]:
+        return {
+            "success": False,
+            "dry_run": False,
+            "interface": interface,
+            "ip": ip,
+            "mask": mask,
+            "commands": commands,
+            "apply": apply_result,
+            "verification": None,
+            "error": apply_result["error"]
+        }
+
+    # Step 4: Verify
+    verification = verify_ip_configuration(
+        client,
+        interface,
+        ip,
+        mask
+    )
+
+    if not verification["success"] or not verification["verified"]:
+        return {
+            "success": False,
+            "dry_run": False,
+            "interface": interface,
+            "ip": ip,
+            "mask": mask,
+            "commands": commands,
+            "apply": apply_result,
+            "verification": verification,
+            "error": verification["error"]
+        }
+
+    # Complete workflow successful
+    return {
+        "success": True,
+        "dry_run": False,
+        "interface": interface,
+        "ip": ip,
+        "mask": mask,
+        "commands": commands,
+        "apply": apply_result,
+        "verification": verification,
+        "error": ""
+    }
+
 def configure_interface(
     client,
     interface,
@@ -527,10 +886,10 @@ def configure_interface(
     Complete interface configuration workflow.
 
     Workflow:
-    Validate → Generate → Preview → Apply → Verify
+    Validate â†’ Generate â†’ Preview â†’ Apply â†’ Verify
 
     If dry_run is True:
-    Validate → Generate → Preview
+    Validate â†’ Generate â†’ Preview
 
     No device changes are made during dry run.
     """
@@ -735,10 +1094,10 @@ def configure_vlan(client, vlan_id, name, dry_run=False):
     Complete VLAN configuration workflow.
 
     Workflow:
-    Validate → Generate → Preview → Apply → Verify
+    Validate â†’ Generate â†’ Preview â†’ Apply â†’ Verify
 
     If dry_run is True:
-    Validate → Generate → Preview
+    Validate â†’ Generate â†’ Preview
 
     No device changes are made during dry run.
     """
