@@ -1,5 +1,87 @@
-import ipaddress
+﻿import ipaddress
+from abc import ABC, abstractmethod
+
 from ssh.ssh_manager import execute_command
+
+
+class itry(ABC):
+    """Utility wrapper for common configuration workflows."""
+
+    @staticmethod
+    @abstractmethod
+    def validate_ip_address(ip_value):
+        """Return True when a value is a valid IPv4 or IPv6 address."""
+        try:
+            ipaddress.ip_address(ip_value)
+            return True
+        except (TypeError, ValueError):
+            return False
+
+    @staticmethod
+    @abstractmethod
+    def generate_config_commands(config_type, config):
+        """Generate config commands for a target device."""
+        return generate_config_commands(config_type, config)
+
+    @staticmethod
+    @abstractmethod
+    def dry_run_config(config_type, config):
+        """Preview config commands without applying them."""
+        return dry_run_config(config_type, config)
+
+    @staticmethod
+    @abstractmethod
+    def apply_config(client, commands, dry_run=False):
+        """Apply a list of commands to a device."""
+        return apply_config(client, commands, dry_run=dry_run)
+
+    @staticmethod
+    @abstractmethod
+    def parse_interface_description(output, interface):
+        """Parse a device description table for a specific interface."""
+        return parse_interface_description(output, interface)
+
+    @staticmethod
+    @abstractmethod
+    def verify_interface(client, interface, expected_description, expected_status):
+        """Verify a single interface description/status against expected values."""
+        return verify_interface(client, interface, expected_description, expected_status)
+
+    @staticmethod
+    @abstractmethod
+    def parse_interface_ip(output, interface):
+        """Parse IP information for a specific interface."""
+        return parse_interface_ip(output, interface)
+
+    @staticmethod
+    @abstractmethod
+    def verify_ip_configuration(client, interface, expected_ip, expected_mask):
+        """Verify a single interface IP/mask against expected values."""
+        return verify_ip_configuration(client, interface, expected_ip, expected_mask)
+
+    @staticmethod
+    @abstractmethod
+    def configure_ip(client, interface, ip, mask, dry_run=False):
+        """Configure and verify an interface IP address."""
+        return configure_ip(client, interface, ip, mask, dry_run=dry_run)
+
+    @staticmethod
+    @abstractmethod
+    def configure_interface(client, interface, description, status, dry_run=False):
+        """Configure and verify an interface description/status."""
+        return configure_interface(client, interface, description, status, dry_run=dry_run)
+
+    @staticmethod
+    @abstractmethod
+    def verify_vlan(client, vlan_id, expected_name):
+        """Verify VLAN existence and name on a device."""
+        return verify_vlan(client, vlan_id, expected_name)
+
+    @staticmethod
+    @abstractmethod
+    def configure_vlan(client, vlan_id, name, dry_run=False):
+        """Configure and verify a VLAN."""
+        return configure_vlan(client, vlan_id, name, dry_run=dry_run)
 
 
 
@@ -92,7 +174,6 @@ def generate_config_commands(config_type, config):
             }
 
         try:
-            import ipaddress
             ipaddress.ip_address(ip)
         except ValueError:
             return {
@@ -129,6 +210,7 @@ def generate_config_commands(config_type, config):
         mask = config.get("mask")
         gateway = config.get("gateway")
 
+        # Validate destination network
         if not network or not isinstance(network, str):
             return {
                 "success": False,
@@ -136,6 +218,7 @@ def generate_config_commands(config_type, config):
                 "error": "Invalid destination network"
             }
 
+        # Validate subnet mask
         if not mask or not isinstance(mask, str):
             return {
                 "success": False,
@@ -143,6 +226,7 @@ def generate_config_commands(config_type, config):
                 "error": "Invalid subnet mask"
             }
 
+        # Validate gateway
         if not gateway or not isinstance(gateway, str):
             return {
                 "success": False,
@@ -150,18 +234,307 @@ def generate_config_commands(config_type, config):
                 "error": "Invalid gateway"
             }
 
-        commands.append(f"ip route {network} {mask} {gateway}")
+        # Validate destination network + subnet mask
+        try:
+            ipaddress.IPv4Network(
+                f"{network}/{mask}",
+                strict=True
+            )
+        except ValueError:
+            return {
+                "success": False,
+                "commands": [],
+                "error": "Invalid destination network or subnet mask"
+            }
+
+        # Validate gateway IPv4 address
+        try:
+            ipaddress.IPv4Address(gateway)
+        except ValueError:
+            return {
+                "success": False,
+                "commands": [],
+                "error": "Invalid gateway"
+            }
+
+        commands.append(
+            f"ip route {network} {mask} {gateway}"
+        )
 
     else:
         return {
             "success": False,
             "commands": [],
-            "error": "Unsupported configuration type"
+            "error": "Unsupported config type"
         }
 
     return {
         "success": True,
         "commands": commands,
+        "error": ""
+    }
+
+
+def parse_static_route(output, network, mask, gateway):
+    """
+    Parse static route information from device command output.
+
+    Returns normalized route information:
+        success
+        network
+        mask
+        gateway
+        error
+
+    This parser currently supports the controlled route-output
+    format used by the automation tests.
+    """
+
+    if not isinstance(output, str):
+        return {
+            "success": False,
+            "network": network,
+            "mask": mask,
+            "gateway": None,
+            "error": "Invalid command output"
+        }
+
+    if not output.strip():
+        return {
+            "success": False,
+            "network": network,
+            "mask": mask,
+            "gateway": None,
+            "error": "Empty command output"
+        }
+
+    if not isinstance(network, str) or not network.strip():
+        return {
+            "success": False,
+            "network": network,
+            "mask": mask,
+            "gateway": None,
+            "error": "Invalid destination network"
+        }
+
+    if not isinstance(mask, str) or not mask.strip():
+        return {
+            "success": False,
+            "network": network,
+            "mask": mask,
+            "gateway": None,
+            "error": "Invalid subnet mask"
+        }
+
+    if not isinstance(gateway, str) or not gateway.strip():
+        return {
+            "success": False,
+            "network": network,
+            "mask": mask,
+            "gateway": None,
+            "error": "Invalid gateway"
+        }
+
+    target_network = network.strip()
+    target_mask = mask.strip()
+    target_gateway = gateway.strip()
+
+    for line in output.splitlines():
+        line = line.strip()
+
+        if not line:
+            continue
+
+        parts = line.split()
+
+        if len(parts) < 3:
+            continue
+
+        actual_network = parts[0]
+        actual_mask = parts[1]
+        actual_gateway = parts[2]
+
+        if (
+            actual_network == target_network
+            and actual_mask == target_mask
+            and actual_gateway == target_gateway
+        ):
+            return {
+                "success": True,
+                "network": actual_network,
+                "mask": actual_mask,
+                "gateway": actual_gateway,
+                "error": None
+            }
+
+    return {
+        "success": False,
+        "network": target_network,
+        "mask": target_mask,
+        "gateway": None,
+        "error": "Static route not found"
+    }
+
+
+def verify_static_route(
+    client,
+    network,
+    mask,
+    gateway,
+    verification_command="show ip route"
+):
+    """
+    Verify whether the expected static route exists on the device.
+
+    The command used for verification can be supplied by a
+    vendor-specific adapter in the future.
+    """
+
+    if not isinstance(network, str) or not network.strip():
+        return {
+            "success": False,
+            "verified": False,
+            "network": network,
+            "mask": mask,
+            "gateway": gateway,
+            "actual_gateway": None,
+            "error": "Invalid destination network"
+        }
+
+    if not isinstance(mask, str) or not mask.strip():
+        return {
+            "success": False,
+            "verified": False,
+            "network": network,
+            "mask": mask,
+            "gateway": gateway,
+            "actual_gateway": None,
+            "error": "Invalid subnet mask"
+        }
+
+    if not isinstance(gateway, str) or not gateway.strip():
+        return {
+            "success": False,
+            "verified": False,
+            "network": network,
+            "mask": mask,
+            "gateway": gateway,
+            "actual_gateway": None,
+            "error": "Invalid gateway"
+        }
+
+    command_result = execute_command(
+        client,
+        verification_command
+    )
+
+    if not command_result.get("success"):
+        return {
+            "success": False,
+            "verified": False,
+            "network": network,
+            "mask": mask,
+            "gateway": gateway,
+            "actual_gateway": None,
+            "error": command_result.get(
+                "error",
+                "Route verification command failed"
+            )
+        }
+
+    parsed = parse_static_route(
+        command_result.get("output", ""),
+        network,
+        mask,
+        gateway
+    )
+
+    if not parsed.get("success"):
+        return {
+            "success": True,
+            "verified": False,
+            "network": network,
+            "mask": mask,
+            "gateway": gateway,
+            "actual_gateway": parsed.get("gateway"),
+            "error": parsed.get(
+                "error",
+                "Static route verification failed"
+            )
+        }
+
+    actual_gateway = parsed.get("gateway")
+
+    if actual_gateway != gateway:
+        return {
+            "success": True,
+            "verified": False,
+            "network": network,
+            "mask": mask,
+            "gateway": gateway,
+            "actual_gateway": actual_gateway,
+            "error": "Gateway does not match"
+        }
+
+    return {
+        "success": True,
+        "verified": True,
+        "network": network,
+        "mask": mask,
+        "gateway": gateway,
+        "actual_gateway": actual_gateway,
+        "error": None
+    }
+
+
+def validate_config_commands(commands):
+    """
+    Validate configuration commands before device execution.
+
+    This is a vendor-independent safety layer.
+    It validates command structure without assuming
+    vendor-specific command syntax.
+    """
+
+    if not isinstance(commands, list):
+        return {
+            "success": False,
+            "commands": [],
+            "error": "Configuration commands must be a list"
+        }
+
+    if not commands:
+        return {
+            "success": False,
+            "commands": [],
+            "error": "No configuration commands provided"
+        }
+
+    normalized_commands = []
+
+    for command in commands:
+
+        if not isinstance(command, str):
+            return {
+                "success": False,
+                "commands": [],
+                "error": "Configuration command must be a string"
+            }
+
+        normalized_command = command.strip()
+
+        if not normalized_command:
+            return {
+                "success": False,
+                "commands": [],
+                "error": "Configuration command cannot be empty"
+            }
+
+        normalized_commands.append(normalized_command)
+
+    return {
+        "success": True,
+        "commands": normalized_commands,
         "error": ""
     }
 
@@ -397,7 +770,7 @@ def verify_interface(
     Verify an interface's description and operational status.
 
     Workflow:
-    Validate â†’ Execute show command â†’ Parse â†’ Compare â†’ Verify
+    Validate → Execute show command → Parse → Compare → Verify
 
     This function does not modify the device.
     """
@@ -886,10 +1259,10 @@ def configure_interface(
     Complete interface configuration workflow.
 
     Workflow:
-    Validate â†’ Generate â†’ Preview â†’ Apply â†’ Verify
+    Validate → Generate → Preview → Apply → Verify
 
     If dry_run is True:
-    Validate â†’ Generate â†’ Preview
+    Validate → Generate → Preview
 
     No device changes are made during dry run.
     """
@@ -1094,10 +1467,10 @@ def configure_vlan(client, vlan_id, name, dry_run=False):
     Complete VLAN configuration workflow.
 
     Workflow:
-    Validate â†’ Generate â†’ Preview â†’ Apply â†’ Verify
+    Validate → Generate → Preview → Apply → Verify
 
     If dry_run is True:
-    Validate â†’ Generate â†’ Preview
+    Validate → Generate → Preview
 
     No device changes are made during dry run.
     """

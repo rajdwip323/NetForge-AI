@@ -18,3 +18,5 @@ logs/
 # OS Files
 .DS_Store
 Thumbs.db
+# Network Configuration Backups
+backups/
