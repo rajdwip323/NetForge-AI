@@ -1,7 +1,13 @@
-﻿import ipaddress
+import ipaddress
 from abc import ABC, abstractmethod
 
 from ssh.ssh_manager import execute_command
+
+from verification.verification_engine import (
+    verification_passed,
+    verification_failed,
+    verification_error
+)
 
 
 class itry(ABC):
@@ -770,7 +776,7 @@ def verify_interface(
     Verify an interface's description and operational status.
 
     Workflow:
-    Validate → Execute show command → Parse → Compare → Verify
+    Validate ? Execute show command ? Parse ? Compare ? Verify
 
     This function does not modify the device.
     """
@@ -863,18 +869,56 @@ def verify_interface(
         actual_status == expected_status
     )
 
+        # Compare expected vs actual
+    description_match = (
+        actual_description == expected_description
+    )
+
+    status_match = (
+        actual_status == expected_status
+    )
+
     # Both values match
     if description_match and status_match:
-        return {
-            "success": True,
-            "verified": True,
-            "interface": interface,
-            "expected_description": expected_description,
-            "actual_description": actual_description,
-            "expected_status": expected_status,
-            "actual_status": actual_status,
-            "error": None
-        }
+        verification = verification_passed(
+            target=interface,
+            expected={
+                "description": expected_description,
+                "status": expected_status
+            },
+            actual={
+                "description": actual_description,
+                "status": actual_status
+            }
+        )
+
+    # Device responded successfully,
+    # but actual configuration does not match expected.
+    else:
+        verification = verification_failed(
+            target=interface,
+            expected={
+                "description": expected_description,
+                "status": expected_status
+            },
+            actual={
+                "description": actual_description,
+                "status": actual_status
+            },
+            error="Interface verification failed"
+        )
+
+    return {
+        "success": verification["success"],
+        "verified": verification["verified"],
+        "interface": interface,
+        "expected_description": expected_description,
+        "actual_description": actual_description,
+        "expected_status": expected_status,
+        "actual_status": actual_status,
+        "error": verification["error"]
+    }
+
 
     # Device responded successfully,
     # but actual configuration does not match expected.
@@ -1259,10 +1303,10 @@ def configure_interface(
     Complete interface configuration workflow.
 
     Workflow:
-    Validate → Generate → Preview → Apply → Verify
+    Validate ? Generate ? Preview ? Apply ? Verify
 
     If dry_run is True:
-    Validate → Generate → Preview
+    Validate ? Generate ? Preview
 
     No device changes are made during dry run.
     """
@@ -1467,10 +1511,10 @@ def configure_vlan(client, vlan_id, name, dry_run=False):
     Complete VLAN configuration workflow.
 
     Workflow:
-    Validate → Generate → Preview → Apply → Verify
+    Validate ? Generate ? Preview ? Apply ? Verify
 
     If dry_run is True:
-    Validate → Generate → Preview
+    Validate ? Generate ? Preview
 
     No device changes are made during dry run.
     """
