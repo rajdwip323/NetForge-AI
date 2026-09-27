@@ -129,3 +129,5 @@ def is_verification_successful(result):
         result.get("success") is True
         and result.get("verified") is True
     )
+
+

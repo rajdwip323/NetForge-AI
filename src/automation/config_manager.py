@@ -1,5 +1,7 @@
-import ipaddress
-from abc import ABC, abstractmethod
+﻿import ipaddress
+import re
+
+from abc import ABC
 
 from ssh.ssh_manager import execute_command
 
@@ -9,12 +11,15 @@ from verification.verification_engine import (
     verification_error
 )
 
+from verification.interface_verifier import (
+    verify_interface_state
+)
+
 
 class itry(ABC):
     """Utility wrapper for common configuration workflows."""
 
     @staticmethod
-    @abstractmethod
     def validate_ip_address(ip_value):
         """Return True when a value is a valid IPv4 or IPv6 address."""
         try:
@@ -24,71 +29,102 @@ class itry(ABC):
             return False
 
     @staticmethod
-    @abstractmethod
     def generate_config_commands(config_type, config):
-        """Generate config commands for a target device."""
         return generate_config_commands(config_type, config)
 
     @staticmethod
-    @abstractmethod
     def dry_run_config(config_type, config):
-        """Preview config commands without applying them."""
         return dry_run_config(config_type, config)
 
     @staticmethod
-    @abstractmethod
     def apply_config(client, commands, dry_run=False):
-        """Apply a list of commands to a device."""
         return apply_config(client, commands, dry_run=dry_run)
 
     @staticmethod
-    @abstractmethod
     def parse_interface_description(output, interface):
-        """Parse a device description table for a specific interface."""
         return parse_interface_description(output, interface)
 
     @staticmethod
-    @abstractmethod
-    def verify_interface(client, interface, expected_description, expected_status):
-        """Verify a single interface description/status against expected values."""
-        return verify_interface(client, interface, expected_description, expected_status)
+    def verify_interface(
+        client,
+        interface,
+        expected_description,
+        expected_status
+    ):
+        return verify_interface(
+            client,
+            interface,
+            expected_description,
+            expected_status
+        )
 
     @staticmethod
-    @abstractmethod
     def parse_interface_ip(output, interface):
-        """Parse IP information for a specific interface."""
         return parse_interface_ip(output, interface)
 
     @staticmethod
-    @abstractmethod
-    def verify_ip_configuration(client, interface, expected_ip, expected_mask):
-        """Verify a single interface IP/mask against expected values."""
-        return verify_ip_configuration(client, interface, expected_ip, expected_mask)
+    def verify_ip_configuration(
+        client,
+        interface,
+        expected_ip,
+        expected_mask
+    ):
+        return verify_ip_configuration(
+            client,
+            interface,
+            expected_ip,
+            expected_mask
+        )
 
     @staticmethod
-    @abstractmethod
-    def configure_ip(client, interface, ip, mask, dry_run=False):
-        """Configure and verify an interface IP address."""
-        return configure_ip(client, interface, ip, mask, dry_run=dry_run)
+    def configure_ip(
+        client,
+        interface,
+        ip,
+        mask,
+        dry_run=False
+    ):
+        return configure_ip(
+            client,
+            interface,
+            ip,
+            mask,
+            dry_run=dry_run
+        )
 
     @staticmethod
-    @abstractmethod
-    def configure_interface(client, interface, description, status, dry_run=False):
-        """Configure and verify an interface description/status."""
-        return configure_interface(client, interface, description, status, dry_run=dry_run)
+    def configure_interface(
+        client,
+        interface,
+        description,
+        status,
+        dry_run=False
+    ):
+        return configure_interface(
+            client,
+            interface,
+            description,
+            status,
+            dry_run=dry_run
+        )
 
     @staticmethod
-    @abstractmethod
     def verify_vlan(client, vlan_id, expected_name):
-        """Verify VLAN existence and name on a device."""
         return verify_vlan(client, vlan_id, expected_name)
 
     @staticmethod
-    @abstractmethod
-    def configure_vlan(client, vlan_id, name, dry_run=False):
-        """Configure and verify a VLAN."""
-        return configure_vlan(client, vlan_id, name, dry_run=dry_run)
-
+    def configure_vlan(
+        client,
+        vlan_id,
+        name,
+        dry_run=False
+    ):
+        return configure_vlan(
+            client,
+            vlan_id,
+            name,
+            dry_run=dry_run
+        )
 
 
 def generate_config_commands(config_type, config):
@@ -101,7 +137,19 @@ def generate_config_commands(config_type, config):
 
     commands = []
 
+    if not isinstance(config, dict):
+        return {
+            "success": False,
+            "commands": [],
+            "error": "Configuration must be a dictionary"
+        }
+
+    # --------------------------------------------------------
+    # VLAN configuration
+    # --------------------------------------------------------
+
     if config_type == "vlan":
+
         vlan_id = config.get("vlan_id")
         name = config.get("name")
 
@@ -122,7 +170,12 @@ def generate_config_commands(config_type, config):
         commands.append(f"vlan {vlan_id}")
         commands.append(f"name {name}")
 
+    # --------------------------------------------------------
+    # Interface configuration
+    # --------------------------------------------------------
+
     elif config_type == "interface":
+
         interface = config.get("interface")
         description = config.get("description")
         status = config.get("status")
@@ -158,12 +211,16 @@ def generate_config_commands(config_type, config):
         else:
             commands.append("shutdown")
 
+    # --------------------------------------------------------
+    # IP configuration
+    # --------------------------------------------------------
+
     elif config_type == "ip":
+
         interface = config.get("interface")
         ip = config.get("ip")
         mask = config.get("mask")
 
-        # Validate interface
         if not interface or not isinstance(interface, str):
             return {
                 "success": False,
@@ -171,7 +228,6 @@ def generate_config_commands(config_type, config):
                 "error": "Invalid interface name"
             }
 
-        # Validate IP address
         if not ip or not isinstance(ip, str):
             return {
                 "success": False,
@@ -188,7 +244,6 @@ def generate_config_commands(config_type, config):
                 "error": "Invalid IP address"
             }
 
-        # Validate subnet mask
         if not mask or not isinstance(mask, str):
             return {
                 "success": False,
@@ -211,12 +266,16 @@ def generate_config_commands(config_type, config):
         commands.append(f"ip address {ip} {mask}")
         commands.append("no shutdown")
 
+    # --------------------------------------------------------
+    # Static route configuration
+    # --------------------------------------------------------
+
     elif config_type == "route":
+
         network = config.get("network")
         mask = config.get("mask")
         gateway = config.get("gateway")
 
-        # Validate destination network
         if not network or not isinstance(network, str):
             return {
                 "success": False,
@@ -224,7 +283,6 @@ def generate_config_commands(config_type, config):
                 "error": "Invalid destination network"
             }
 
-        # Validate subnet mask
         if not mask or not isinstance(mask, str):
             return {
                 "success": False,
@@ -232,7 +290,6 @@ def generate_config_commands(config_type, config):
                 "error": "Invalid subnet mask"
             }
 
-        # Validate gateway
         if not gateway or not isinstance(gateway, str):
             return {
                 "success": False,
@@ -240,7 +297,6 @@ def generate_config_commands(config_type, config):
                 "error": "Invalid gateway"
             }
 
-        # Validate destination network + subnet mask
         try:
             ipaddress.IPv4Network(
                 f"{network}/{mask}",
@@ -253,7 +309,6 @@ def generate_config_commands(config_type, config):
                 "error": "Invalid destination network or subnet mask"
             }
 
-        # Validate gateway IPv4 address
         try:
             ipaddress.IPv4Address(gateway)
         except ValueError:
@@ -283,17 +338,7 @@ def generate_config_commands(config_type, config):
 
 def parse_static_route(output, network, mask, gateway):
     """
-    Parse static route information from device command output.
-
-    Returns normalized route information:
-        success
-        network
-        mask
-        gateway
-        error
-
-    This parser currently supports the controlled route-output
-    format used by the automation tests.
+    Parse static route information from device output.
     """
 
     if not isinstance(output, str):
@@ -346,6 +391,7 @@ def parse_static_route(output, network, mask, gateway):
     target_gateway = gateway.strip()
 
     for line in output.splitlines():
+
         line = line.strip()
 
         if not line:
@@ -390,10 +436,7 @@ def verify_static_route(
     verification_command="show ip route"
 ):
     """
-    Verify whether the expected static route exists on the device.
-
-    The command used for verification can be supplied by a
-    vendor-specific adapter in the future.
+    Verify whether the expected static route exists.
     """
 
     if not isinstance(network, str) or not network.strip():
@@ -495,11 +538,9 @@ def verify_static_route(
 
 def validate_config_commands(commands):
     """
-    Validate configuration commands before device execution.
+    Validate configuration commands before execution.
 
     This is a vendor-independent safety layer.
-    It validates command structure without assuming
-    vendor-specific command syntax.
     """
 
     if not isinstance(commands, list):
@@ -547,11 +588,13 @@ def validate_config_commands(commands):
 
 def dry_run_config(config_type, config):
     """
-    Generate and preview configuration commands
-    without executing them on a device.
+    Generate and preview configuration commands.
     """
 
-    result = generate_config_commands(config_type, config)
+    result = generate_config_commands(
+        config_type,
+        config
+    )
 
     if not result["success"]:
         return {
@@ -572,9 +615,6 @@ def dry_run_config(config_type, config):
 def apply_config(client, commands, dry_run=False):
     """
     Apply configuration commands to a connected device.
-
-    If dry_run is True, commands are only returned for preview
-    and are not executed.
     """
 
     if not isinstance(commands, list) or not commands:
@@ -596,7 +636,11 @@ def apply_config(client, commands, dry_run=False):
     results = []
 
     for command in commands:
-        result = execute_command(client, command)
+
+        result = execute_command(
+            client,
+            command
+        )
 
         results.append({
             "command": command,
@@ -623,18 +667,14 @@ def apply_config(client, commands, dry_run=False):
 
 def parse_interface_description(output, interface):
     """
-    Parse Cisco 'show interfaces description' output
-    for a specific interface.
+    Parse interface description output.
 
-    Returns:
-        success      -> Parsing operation successful or not
-        interface    -> Normalized interface name
-        status       -> Actual interface status
-        description  -> Actual interface description
-        error        -> Error message if parsing fails
+    The current parser understands the existing Cisco-style
+    'show interfaces description' test format.
+
+    Vendor-specific parsers can be moved to adapters later.
     """
 
-    # Validate interface input
     if not isinstance(interface, str) or not interface.strip():
         return {
             "success": False,
@@ -644,7 +684,6 @@ def parse_interface_description(output, interface):
             "error": "Invalid interface name"
         }
 
-    # Validate command output
     if not isinstance(output, str):
         return {
             "success": False,
@@ -664,15 +703,6 @@ def parse_interface_description(output, interface):
         }
 
     def normalize_interface_name(name):
-        """
-        Normalize common Cisco interface name formats.
-
-        Example:
-        GigabitEthernet0/1 -> Gi0/1
-        FastEthernet0/1   -> Fa0/1
-        TenGigabitEthernet0/1 -> Te0/1
-        """
-
         name = name.strip()
 
         prefixes = {
@@ -684,12 +714,18 @@ def parse_interface_description(output, interface):
         lower_name = name.lower()
 
         for prefix, abbreviation in prefixes.items():
+
             if lower_name.startswith(prefix):
-                return abbreviation + name[len(prefix):]
+                return (
+                    abbreviation
+                    + name[len(prefix):]
+                )
 
         return name
 
-    target_interface = normalize_interface_name(interface)
+    target_interface = normalize_interface_name(
+        interface
+    )
 
     for line in output.splitlines():
 
@@ -698,21 +734,13 @@ def parse_interface_description(output, interface):
         if not line:
             continue
 
-        # Skip header/separator lines
         if line.lower().startswith("interface"):
             continue
-
-        # Cisco show interfaces description format:
-        #
-        # Gi0/1    up          up       UPLINK_TO_CORE
-        # Gi0/2    admin down  down     USER_ACCESS
-        #
-        import re
 
         match = re.match(
             r"^(?P<interface>\S+)\s+"
             r"(?P<status>admin(?:istratively)?\s+down|up|down)\s+"
-            r"(?P<protocol>administratively\s+down|up|down)\s*"
+            r"(?P<protocol>administratively\s+down|up|down)\s+"
             r"(?P<description>.*)$",
             line,
             re.IGNORECASE
@@ -720,11 +748,16 @@ def parse_interface_description(output, interface):
 
         if not match:
 
-            # Check whether this malformed line belongs
-            # to the requested interface.
-            first_word = line.split()[0] if line.split() else ""
+            first_word = (
+                line.split()[0]
+                if line.split()
+                else ""
+            )
 
-            if normalize_interface_name(first_word).lower() == target_interface.lower():
+            if (
+                normalize_interface_name(first_word).lower()
+                == target_interface.lower()
+            ):
                 return {
                     "success": False,
                     "interface": target_interface,
@@ -739,14 +772,19 @@ def parse_interface_description(output, interface):
             match.group("interface")
         )
 
-        if actual_interface.lower() != target_interface.lower():
+        if (
+            actual_interface.lower()
+            != target_interface.lower()
+        ):
             continue
 
         actual_status = " ".join(
             match.group("status").lower().split()
         )
 
-        actual_description = match.group("description").strip()
+        actual_description = (
+            match.group("description").strip()
+        )
 
         return {
             "success": True,
@@ -765,7 +803,6 @@ def parse_interface_description(output, interface):
     }
 
 
-
 def verify_interface(
     client,
     interface,
@@ -773,16 +810,27 @@ def verify_interface(
     expected_status
 ):
     """
-    Verify an interface's description and operational status.
+    Verify an interface's description and status.
 
     Workflow:
-    Validate ? Execute show command ? Parse ? Compare ? Verify
 
-    This function does not modify the device.
+        Validate
+            ↓
+        Execute command
+            ↓
+        Parse output
+            ↓
+        Interface Verifier
+            ↓
+        Standard Verification Result
     """
 
+    # --------------------------------------------------------
     # Validate interface
+    # --------------------------------------------------------
+
     if not isinstance(interface, str) or not interface.strip():
+
         return {
             "success": False,
             "verified": False,
@@ -794,8 +842,12 @@ def verify_interface(
             "error": "Invalid interface name"
         }
 
+    # --------------------------------------------------------
     # Validate expected description
+    # --------------------------------------------------------
+
     if not isinstance(expected_description, str):
+
         return {
             "success": False,
             "verified": False,
@@ -807,8 +859,12 @@ def verify_interface(
             "error": "Invalid expected interface description"
         }
 
+    # --------------------------------------------------------
     # Validate expected status
+    # --------------------------------------------------------
+
     if expected_status not in ["up", "down"]:
+
         return {
             "success": False,
             "verified": False,
@@ -820,131 +876,109 @@ def verify_interface(
             "error": "Invalid expected interface status"
         }
 
+    # --------------------------------------------------------
     # Execute verification command
+    # --------------------------------------------------------
+
     result = execute_command(
         client,
         "show interfaces description"
     )
 
-    if not result["success"]:
+    if not result.get("success"):
+
+        verification = verification_error(
+            target=interface,
+            expected={
+                "description": expected_description,
+                "status": expected_status
+            },
+            error=result.get(
+                "error",
+                "Interface verification command failed"
+            )
+        )
+
         return {
-            "success": False,
-            "verified": False,
+            "success": verification["success"],
+            "verified": verification["verified"],
             "interface": interface,
             "expected_description": expected_description,
             "actual_description": None,
             "expected_status": expected_status,
             "actual_status": None,
-            "error": result["error"]
+            "error": verification["error"]
         }
 
+    # --------------------------------------------------------
     # Parse device output
+    # --------------------------------------------------------
+
     parsed = parse_interface_description(
-        result["output"],
+        result.get("output", ""),
         interface
     )
 
-    if not parsed["success"]:
+    if not parsed.get("success"):
+
+        verification = verification_error(
+            target=interface,
+            expected={
+                "description": expected_description,
+                "status": expected_status
+            },
+            actual={
+                "description": parsed.get("description"),
+                "status": parsed.get("status")
+            },
+            error=parsed.get(
+                "error",
+                "Interface parsing failed"
+            )
+        )
+
         return {
-            "success": False,
-            "verified": False,
+            "success": verification["success"],
+            "verified": verification["verified"],
             "interface": interface,
             "expected_description": expected_description,
-            "actual_description": parsed["description"],
+            "actual_description": parsed.get("description"),
             "expected_status": expected_status,
-            "actual_status": parsed["status"],
-            "error": parsed["error"]
+            "actual_status": parsed.get("status"),
+            "error": verification["error"]
         }
 
-    # Extract actual values
-    actual_description = parsed["description"]
-    actual_status = parsed["status"]
+    # --------------------------------------------------------
+    # Delegate comparison to Phase 5.2 verifier
+    # --------------------------------------------------------
 
-    # Compare expected vs actual
-    description_match = (
-        actual_description == expected_description
+    verification = verify_interface_state(
+        interface=interface,
+        expected_description=expected_description,
+        expected_status=expected_status,
+        actual_description=parsed.get("description"),
+        actual_status=parsed.get("status")
     )
 
-    status_match = (
-        actual_status == expected_status
-    )
-
-        # Compare expected vs actual
-    description_match = (
-        actual_description == expected_description
-    )
-
-    status_match = (
-        actual_status == expected_status
-    )
-
-    # Both values match
-    if description_match and status_match:
-        verification = verification_passed(
-            target=interface,
-            expected={
-                "description": expected_description,
-                "status": expected_status
-            },
-            actual={
-                "description": actual_description,
-                "status": actual_status
-            }
-        )
-
-    # Device responded successfully,
-    # but actual configuration does not match expected.
-    else:
-        verification = verification_failed(
-            target=interface,
-            expected={
-                "description": expected_description,
-                "status": expected_status
-            },
-            actual={
-                "description": actual_description,
-                "status": actual_status
-            },
-            error="Interface verification failed"
-        )
+    # --------------------------------------------------------
+    # Preserve existing external contract
+    # --------------------------------------------------------
 
     return {
         "success": verification["success"],
         "verified": verification["verified"],
         "interface": interface,
         "expected_description": expected_description,
-        "actual_description": actual_description,
+        "actual_description": parsed.get("description"),
         "expected_status": expected_status,
-        "actual_status": actual_status,
+        "actual_status": parsed.get("status"),
         "error": verification["error"]
     }
 
 
-    # Device responded successfully,
-    # but actual configuration does not match expected.
-    return {
-        "success": True,
-        "verified": False,
-        "interface": interface,
-        "expected_description": expected_description,
-        "actual_description": actual_description,
-        "expected_status": expected_status,
-        "actual_status": actual_status,
-        "error": "Interface verification failed"
-    }
-
-
-
 def parse_interface_ip(output, interface):
     """
-    Parse interface IP information from device command output.
-
-    Returns:
-        success
-        interface
-        ip
-        mask
-        error
+    Parse interface IP information.
     """
 
     if not isinstance(interface, str) or not interface.strip():
@@ -975,6 +1009,7 @@ def parse_interface_ip(output, interface):
         }
 
     def normalize_interface_name(name):
+
         name = name.strip()
 
         prefixes = {
@@ -986,16 +1021,21 @@ def parse_interface_ip(output, interface):
         lower_name = name.lower()
 
         for prefix, abbreviation in prefixes.items():
+
             if lower_name.startswith(prefix):
-                return abbreviation + name[len(prefix):]
+                return (
+                    abbreviation
+                    + name[len(prefix):]
+                )
 
         return name
 
-    target_interface = normalize_interface_name(interface)
-
-    import re
+    target_interface = normalize_interface_name(
+        interface
+    )
 
     for line in output.splitlines():
+
         line = line.strip()
 
         if not line:
@@ -1015,7 +1055,10 @@ def parse_interface_ip(output, interface):
             match.group("interface")
         )
 
-        if actual_interface.lower() != target_interface.lower():
+        if (
+            actual_interface.lower()
+            != target_interface.lower()
+        ):
             continue
 
         return {
@@ -1043,11 +1086,8 @@ def verify_ip_configuration(
 ):
     """
     Verify IP configuration on a network device.
-
-    Compares expected IP/mask with the parsed device output.
     """
 
-    # Validate interface
     if not isinstance(interface, str) or not interface.strip():
         return {
             "success": False,
@@ -1060,10 +1100,9 @@ def verify_ip_configuration(
             "error": "Invalid interface"
         }
 
-    # Validate expected IP
     try:
         ipaddress.ip_address(expected_ip)
-    except ValueError:
+    except (TypeError, ValueError):
         return {
             "success": False,
             "verified": False,
@@ -1075,12 +1114,11 @@ def verify_ip_configuration(
             "error": "Invalid IP address"
         }
 
-    # Validate expected mask
     try:
         ipaddress.IPv4Network(
             f"0.0.0.0/{expected_mask}"
         )
-    except ValueError:
+    except (TypeError, ValueError):
         return {
             "success": False,
             "verified": False,
@@ -1092,13 +1130,12 @@ def verify_ip_configuration(
             "error": "Invalid subnet mask"
         }
 
-    # Get device IP information
     result = execute_command(
         client,
         "show ip interface brief"
     )
 
-    if not result["success"]:
+    if not result.get("success"):
         return {
             "success": False,
             "verified": False,
@@ -1107,16 +1144,15 @@ def verify_ip_configuration(
             "actual_ip": None,
             "expected_mask": expected_mask,
             "actual_mask": None,
-            "error": result["error"]
+            "error": result.get("error")
         }
 
-    # Parse interface IP information
     parsed = parse_interface_ip(
-        result["output"],
+        result.get("output", ""),
         interface
     )
 
-    if not parsed["success"]:
+    if not parsed.get("success"):
         return {
             "success": False,
             "verified": False,
@@ -1125,17 +1161,16 @@ def verify_ip_configuration(
             "actual_ip": parsed.get("ip"),
             "expected_mask": expected_mask,
             "actual_mask": parsed.get("mask"),
-            "error": parsed["error"]
+            "error": parsed.get("error")
         }
 
-    actual_ip = parsed["ip"]
-    actual_mask = parsed["mask"]
+    actual_ip = parsed.get("ip")
+    actual_mask = parsed.get("mask")
 
-    # Compare expected vs actual
-    ip_match = actual_ip == expected_ip
-    mask_match = actual_mask == expected_mask
-
-    if ip_match and mask_match:
+    if (
+        actual_ip == expected_ip
+        and actual_mask == expected_mask
+    ):
         return {
             "success": True,
             "verified": True,
@@ -1147,7 +1182,6 @@ def verify_ip_configuration(
             "error": None
         }
 
-    # Device responded, but state does not match
     return {
         "success": True,
         "verified": False,
@@ -1170,12 +1204,11 @@ def configure_ip(
     """
     Complete IP configuration workflow.
 
-    Workflow:
-        Validate
-        -> Generate
-        -> Preview
-        -> Apply
-        -> Verify
+    Validate
+    -> Generate
+    -> Preview
+    -> Apply
+    -> Verify
     """
 
     config = {
@@ -1184,7 +1217,6 @@ def configure_ip(
         "mask": mask
     }
 
-    # Step 1: Validate + Generate
     generated = generate_config_commands(
         "ip",
         config
@@ -1205,7 +1237,6 @@ def configure_ip(
 
     commands = generated["commands"]
 
-    # Step 2: Preview
     preview = dry_run_config(
         "ip",
         config
@@ -1224,7 +1255,6 @@ def configure_ip(
             "error": preview["error"]
         }
 
-    # Dry-run stops after preview
     if dry_run:
         return {
             "success": True,
@@ -1238,7 +1268,6 @@ def configure_ip(
             "error": ""
         }
 
-    # Step 3: Apply
     apply_result = apply_config(
         client,
         commands,
@@ -1258,7 +1287,6 @@ def configure_ip(
             "error": apply_result["error"]
         }
 
-    # Step 4: Verify
     verification = verify_ip_configuration(
         client,
         interface,
@@ -1266,7 +1294,10 @@ def configure_ip(
         mask
     )
 
-    if not verification["success"] or not verification["verified"]:
+    if (
+        not verification["success"]
+        or not verification["verified"]
+    ):
         return {
             "success": False,
             "dry_run": False,
@@ -1279,7 +1310,6 @@ def configure_ip(
             "error": verification["error"]
         }
 
-    # Complete workflow successful
     return {
         "success": True,
         "dry_run": False,
@@ -1292,6 +1322,7 @@ def configure_ip(
         "error": ""
     }
 
+
 def configure_interface(
     client,
     interface,
@@ -1302,13 +1333,11 @@ def configure_interface(
     """
     Complete interface configuration workflow.
 
-    Workflow:
-    Validate ? Generate ? Preview ? Apply ? Verify
-
-    If dry_run is True:
-    Validate ? Generate ? Preview
-
-    No device changes are made during dry run.
+    Validate
+    -> Generate
+    -> Preview
+    -> Apply
+    -> Verify
     """
 
     config = {
@@ -1317,8 +1346,10 @@ def configure_interface(
         "status": status
     }
 
-    # Step 1: Validate + Generate
-    generated = generate_config_commands("interface", config)
+    generated = generate_config_commands(
+        "interface",
+        config
+    )
 
     if not generated["success"]:
         return {
@@ -1335,8 +1366,10 @@ def configure_interface(
 
     commands = generated["commands"]
 
-    # Step 2: Preview
-    preview = dry_run_config("interface", config)
+    preview = dry_run_config(
+        "interface",
+        config
+    )
 
     if not preview["success"]:
         return {
@@ -1351,7 +1384,6 @@ def configure_interface(
             "error": preview["error"]
         }
 
-    # Dry-run stops after preview
     if dry_run:
         return {
             "success": True,
@@ -1365,7 +1397,6 @@ def configure_interface(
             "error": ""
         }
 
-    # Step 3: Apply
     apply_result = apply_config(
         client,
         commands,
@@ -1385,7 +1416,6 @@ def configure_interface(
             "error": apply_result["error"]
         }
 
-    # Step 4: Verify
     verification = verify_interface(
         client,
         interface,
@@ -1393,7 +1423,10 @@ def configure_interface(
         status
     )
 
-    if not verification["success"] or not verification["verified"]:
+    if (
+        not verification["success"]
+        or not verification["verified"]
+    ):
         return {
             "success": False,
             "dry_run": False,
@@ -1406,7 +1439,6 @@ def configure_interface(
             "error": verification["error"]
         }
 
-    # Complete workflow successful
     return {
         "success": True,
         "dry_run": False,
@@ -1422,10 +1454,7 @@ def configure_interface(
 
 def verify_vlan(client, vlan_id, expected_name):
     """
-    Verify that a VLAN exists on the device and
-    that its name matches the expected name.
-
-    This function does not modify the device.
+    Verify VLAN existence and name.
     """
 
     if not isinstance(vlan_id, int) or not 1 <= vlan_id <= 4094:
@@ -1448,7 +1477,10 @@ def verify_vlan(client, vlan_id, expected_name):
             "error": "Invalid VLAN name"
         }
 
-    result = execute_command(client, "show vlan brief")
+    result = execute_command(
+        client,
+        "show vlan brief"
+    )
 
     if not result["success"]:
         return {
@@ -1460,9 +1492,8 @@ def verify_vlan(client, vlan_id, expected_name):
             "error": result["error"]
         }
 
-    output = result["output"]
+    for line in result["output"].splitlines():
 
-    for line in output.splitlines():
         parts = line.split()
 
         if len(parts) < 2:
@@ -1473,27 +1504,29 @@ def verify_vlan(client, vlan_id, expected_name):
         except ValueError:
             continue
 
-        if device_vlan_id == vlan_id:
-            actual_name = parts[1]
+        if device_vlan_id != vlan_id:
+            continue
 
-            if actual_name == expected_name:
-                return {
-                    "success": True,
-                    "verified": True,
-                    "vlan_id": vlan_id,
-                    "expected_name": expected_name,
-                    "actual_name": actual_name,
-                    "error": ""
-                }
+        actual_name = parts[1]
 
+        if actual_name == expected_name:
             return {
                 "success": True,
-                "verified": False,
+                "verified": True,
                 "vlan_id": vlan_id,
                 "expected_name": expected_name,
                 "actual_name": actual_name,
-                "error": "VLAN name does not match"
+                "error": None
             }
+
+        return {
+            "success": True,
+            "verified": False,
+            "vlan_id": vlan_id,
+            "expected_name": expected_name,
+            "actual_name": actual_name,
+            "error": "VLAN name does not match"
+        }
 
     return {
         "success": True,
@@ -1505,18 +1538,20 @@ def verify_vlan(client, vlan_id, expected_name):
     }
 
 
-
-def configure_vlan(client, vlan_id, name, dry_run=False):
+def configure_vlan(
+    client,
+    vlan_id,
+    name,
+    dry_run=False
+):
     """
     Complete VLAN configuration workflow.
 
-    Workflow:
-    Validate ? Generate ? Preview ? Apply ? Verify
-
-    If dry_run is True:
-    Validate ? Generate ? Preview
-
-    No device changes are made during dry run.
+    Validate
+    -> Generate
+    -> Preview
+    -> Apply
+    -> Verify
     """
 
     config = {
@@ -1524,8 +1559,10 @@ def configure_vlan(client, vlan_id, name, dry_run=False):
         "name": name
     }
 
-    # Step 1: Validate + Generate
-    generated = generate_config_commands("vlan", config)
+    generated = generate_config_commands(
+        "vlan",
+        config
+    )
 
     if not generated["success"]:
         return {
@@ -1539,8 +1576,10 @@ def configure_vlan(client, vlan_id, name, dry_run=False):
 
     commands = generated["commands"]
 
-    # Step 2: Preview
-    preview = dry_run_config("vlan", config)
+    preview = dry_run_config(
+        "vlan",
+        config
+    )
 
     if not preview["success"]:
         return {
@@ -1552,7 +1591,6 @@ def configure_vlan(client, vlan_id, name, dry_run=False):
             "error": preview["error"]
         }
 
-    # Dry-run stops after preview
     if dry_run:
         return {
             "success": True,
@@ -1563,8 +1601,11 @@ def configure_vlan(client, vlan_id, name, dry_run=False):
             "error": ""
         }
 
-    # Step 3: Apply
-    apply_result = apply_config(client, commands, dry_run=False)
+    apply_result = apply_config(
+        client,
+        commands,
+        dry_run=False
+    )
 
     if not apply_result["success"]:
         return {
@@ -1576,10 +1617,16 @@ def configure_vlan(client, vlan_id, name, dry_run=False):
             "error": apply_result["error"]
         }
 
-    # Step 4: Verify
-    verification = verify_vlan(client, vlan_id, name)
+    verification = verify_vlan(
+        client,
+        vlan_id,
+        name
+    )
 
-    if not verification["success"] or not verification["verified"]:
+    if (
+        not verification["success"]
+        or not verification["verified"]
+    ):
         return {
             "success": False,
             "dry_run": False,
@@ -1589,7 +1636,6 @@ def configure_vlan(client, vlan_id, name, dry_run=False):
             "error": verification["error"]
         }
 
-    # Complete workflow successful
     return {
         "success": True,
         "dry_run": False,

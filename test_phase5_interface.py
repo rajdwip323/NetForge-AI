@@ -2,108 +2,60 @@ import sys
 
 sys.path.append("src")
 
-import automation.config_manager as cm
+from verification.interface_verifier import verify_interface_state
+
+
+def print_result(test_name, result):
+    print(f"\n{test_name}:")
+    print(result)
 
 
 # ============================================================
-# Fake SSH Client — Successful Command
+# TEST 1 — PASS
+# Expected and actual interface state match
 # ============================================================
 
-class FakeChannel:
-    def recv_exit_status(self):
-        return 0
-
-
-class FakeStdout:
-    channel = FakeChannel()
-
-    def read(self):
-        return (
-            b"Port      Status       Protocol\n"
-            b"Gi0/1     up           up        UPLINK_TO_CORE\n"
-        )
-
-
-class FakeStderr:
-    def read(self):
-        return b""
-
-
-class FakeClient:
-    def exec_command(self, command):
-        return (
-            None,
-            FakeStdout(),
-            FakeStderr()
-        )
-
-
-# ============================================================
-# Fake SSH Client — Command Failure
-# ============================================================
-
-class ErrorClient:
-    def exec_command(self, command):
-        raise Exception("Simulated SSH command failure")
-
-
-# ============================================================
-# Create Clients
-# ============================================================
-
-success_client = FakeClient()
-error_client = ErrorClient()
-
-
-# ============================================================
-# TEST 1 — VERIFICATION PASS
-# ============================================================
-
-print("========================================")
-print("TEST 1: VERIFICATION PASS")
-print("========================================")
-
-pass_result = cm.verify_interface(
-    success_client,
-    "Gi0/1",
-    "UPLINK_TO_CORE",
-    "up"
+result_1 = verify_interface_state(
+    interface="Gi0/1",
+    expected_description="UPLINK_TO_CORE",
+    expected_status="up",
+    actual_description="UPLINK_TO_CORE",
+    actual_status="up"
 )
 
-print(pass_result)
+print_result("TEST 1 PASS", result_1)
 
 
 # ============================================================
-# TEST 2 — VERIFICATION FAIL
+# TEST 2 — FAIL
+# Description does not match
 # ============================================================
 
-print("\n========================================")
-print("TEST 2: VERIFICATION FAIL")
-print("========================================")
-
-fail_result = cm.verify_interface(
-    success_client,
-    "Gi0/1",
-    "WRONG_DESCRIPTION",
-    "up"
+result_2 = verify_interface_state(
+    interface="Gi0/1",
+    expected_description="WRONG_DESCRIPTION",
+    expected_status="up",
+    actual_description="UPLINK_TO_CORE",
+    actual_status="up"
 )
 
-print(fail_result)
+print_result("TEST 2 FAIL", result_2)
 
 
 # ============================================================
-# TEST 3 — VERIFICATION ERROR
+# TEST 3 — ERROR
+# Invalid actual status
 # ============================================================
 
-print("\n========================================")
-print("TEST 3: VERIFICATION ERROR")
-print("========================================")
-
-error_result = cm.verify_interface(
-    error_client,
-    "Gi0/1",
-    "UPLINK_TO_CORE",
-    "up"
+result_3 = verify_interface_state(
+    interface="Gi0/1",
+    expected_description="UPLINK_TO_CORE",
+    expected_status="up",
+    actual_description="UPLINK_TO_CORE",
+    actual_status="invalid"
 )
 
-print(error_result)
+print_result("TEST 3 ERROR", result_3)
+
+
+print("\nPhase 5.2 interface verification tests completed.")
