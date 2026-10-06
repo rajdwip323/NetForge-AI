@@ -52,6 +52,27 @@ from core.network_utils import (
 )
 
 
+from monitoring.device_health import monitor_device_health
+from monitoring.interface_monitor import monitor_interface
+from monitoring.connectivity_monitor import monitor_connectivity
+from monitoring.event_collector import create_network_event
+from monitoring.alert_engine import create_alert, create_event_alert
+
+from monitoring.alert_lifecycle import (
+    create_alert_record,
+    acknowledge_alert,
+    resolve_alert
+)
+
+from monitoring.monitoring_report import create_monitoring_report
+
+from monitoring.historical_state import (
+    record_metric,
+    get_history,
+    analyze_trend
+)
+
+
 def display_banner():
     print("=" * 55)
     print("              NETFORGE-AI")
@@ -97,6 +118,7 @@ def display_menu():
     print("33. DNS Test")
     print("34. MAC Address Tools")
     print("35. Network Troubleshooting")
+    print("36. Network Monitoring & Observability")
     print("0. Exit")
     print("-" * 55)
 
@@ -604,6 +626,9 @@ def main():
 
         elif choice == "35":
             run_network_troubleshooting()
+
+        elif choice == "36":
+            run_network_monitoring()
 
 
         else:
@@ -1458,6 +1483,419 @@ def run_network_troubleshooting():
 
         else:
             display_error("Invalid troubleshooting choice.")
+
+
+
+# ============================================================
+# PHASE 6 — NETWORK MONITORING & OBSERVABILITY CLI
+# ============================================================
+
+MONITORING_HISTORY = []
+MONITORING_METRICS = []
+MONITORING_EVENTS = []
+MONITORING_ALERTS = []
+MONITORING_LIFECYCLE_ALERTS = []
+
+
+def run_network_monitoring():
+    while True:
+        print("\n" + "=" * 60)
+        print("       NETWORK MONITORING & OBSERVABILITY")
+        print("=" * 60)
+        print("1. Device Health Monitoring")
+        print("2. Interface Monitoring")
+        print("3. Connectivity Monitoring")
+        print("4. Network Event")
+        print("5. Metric Alert")
+        print("6. Event Alert")
+        print("7. Alert Lifecycle")
+        print("8. Monitoring Report")
+        print("9. Historical State & Trend")
+        print("0. Back")
+        print("=" * 60)
+
+        choice = input("Enter your choice: ").strip()
+
+        if choice == "1":
+            run_device_health_monitoring()
+
+        elif choice == "2":
+            run_interface_monitoring()
+
+        elif choice == "3":
+            run_connectivity_monitoring()
+
+        elif choice == "4":
+            run_network_event()
+
+        elif choice == "5":
+            run_metric_alert()
+
+        elif choice == "6":
+            run_event_alert()
+
+        elif choice == "7":
+            run_alert_lifecycle()
+
+        elif choice == "8":
+            run_monitoring_report()
+
+        elif choice == "9":
+            run_historical_state()
+
+        elif choice == "0":
+            break
+
+        else:
+            print("Invalid choice. Please try again.")
+
+
+def run_device_health_monitoring():
+    print("\n--- Device Health Monitoring ---")
+
+    target = input("Device: ").strip()
+
+    reachability_input = input("Reachable? (y/n): ").strip().lower()
+    reachability = reachability_input in ("y", "yes")
+
+    try:
+        cpu_usage = float(input("CPU Usage (%): ").strip())
+        memory_usage = float(input("Memory Usage (%): ").strip())
+    except ValueError:
+        print("CPU and Memory usage must be numeric.")
+        return
+
+    uptime = input("Uptime: ").strip()
+
+    results = monitor_device_health(
+        target,
+        reachability,
+        cpu_usage,
+        memory_usage,
+        uptime
+    )
+
+    MONITORING_METRICS.extend(results)
+
+    print("\nDevice Health Results:")
+    for result in results:
+        print(result)
+
+
+def run_interface_monitoring():
+    print("\n--- Interface Monitoring ---")
+
+    target = input("Device: ").strip()
+    interface = input("Interface: ").strip()
+    operational_status = input("Operational Status (up/down): ").strip()
+
+    try:
+        input_packets = int(input("Input Packets: ").strip())
+        output_packets = int(input("Output Packets: ").strip())
+        input_errors = int(input("Input Errors: ").strip())
+        output_errors = int(input("Output Errors: ").strip())
+        input_discards = int(input("Input Discards: ").strip())
+        output_discards = int(input("Output Discards: ").strip())
+    except ValueError:
+        print("Packet, error and discard values must be integers.")
+        return
+
+    results = monitor_interface(
+        target,
+        interface,
+        operational_status,
+        input_packets,
+        output_packets,
+        input_errors,
+        output_errors,
+        input_discards,
+        output_discards
+    )
+
+    MONITORING_METRICS.extend(results)
+
+    print("\nInterface Monitoring Results:")
+    for result in results:
+        print(result)
+
+
+def run_connectivity_monitoring():
+    print("\n--- Connectivity Monitoring ---")
+
+    source = input("Source Device: ").strip()
+    destination = input("Destination Device: ").strip()
+
+    reachable_input = input("Reachable? (y/n): ").strip().lower()
+    reachable = reachable_input in ("y", "yes")
+
+    try:
+        latency = float(input("Latency (ms): ").strip())
+    except ValueError:
+        print("Latency must be numeric.")
+        return
+
+    results = monitor_connectivity(
+        source,
+        destination,
+        reachable,
+        latency
+    )
+
+    MONITORING_METRICS.extend(results)
+
+    print("\nConnectivity Results:")
+    for result in results:
+        print(result)
+
+
+def run_network_event():
+    print("\n--- Network Event ---")
+
+    target = input("Target: ").strip()
+    event_type = input("Event Type: ").strip()
+    severity = input("Severity: ").strip()
+    message = input("Message: ").strip()
+
+    result = create_network_event(
+        target,
+        event_type,
+        severity,
+        message
+    )
+
+    if result.get("success"):
+        MONITORING_EVENTS.append(result)
+
+    print("\nEvent Result:")
+    print(result)
+
+
+def run_metric_alert():
+    print("\n--- Metric Alert ---")
+
+    target = input("Target: ").strip()
+    metric = input("Metric: ").strip()
+
+    try:
+        value = float(input("Current Value: ").strip())
+        threshold = float(input("Threshold: ").strip())
+    except ValueError:
+        print("Value and threshold must be numeric.")
+        return
+
+    severity = input("Severity: ").strip()
+
+    result = create_alert(
+        target,
+        metric,
+        value,
+        threshold,
+        severity
+    )
+
+    if result.get("success") and result.get("alert"):
+        MONITORING_ALERTS.append(result)
+
+    print("\nMetric Alert Result:")
+    print(result)
+
+
+def run_event_alert():
+    print("\n--- Event Alert ---")
+
+    target = input("Target: ").strip()
+    event_type = input("Event Type: ").strip()
+    severity = input("Severity: ").strip()
+    message = input("Message: ").strip()
+
+    result = create_event_alert(
+        target,
+        event_type,
+        severity,
+        message
+    )
+
+    if result.get("success") and result.get("alert"):
+        MONITORING_ALERTS.append(result)
+
+    print("\nEvent Alert Result:")
+    print(result)
+
+
+def run_alert_lifecycle():
+    while True:
+        print("\n--- Alert Lifecycle ---")
+        print("1. Create Alert Record")
+        print("2. Acknowledge Alert")
+        print("3. Resolve Alert")
+        print("4. Show Alerts")
+        print("0. Back")
+
+        choice = input("Enter your choice: ").strip()
+
+        if choice == "1":
+            target = input("Target: ").strip()
+            alert_type = input("Alert Type: ").strip()
+            severity = input("Severity: ").strip()
+            message = input("Message: ").strip()
+
+            result = create_alert_record(
+                target,
+                alert_type,
+                severity,
+                message
+            )
+
+            if result.get("success"):
+                MONITORING_LIFECYCLE_ALERTS.append(result)
+
+            print("\nAlert Record:")
+            print(result)
+
+        elif choice == "2":
+            if not MONITORING_LIFECYCLE_ALERTS:
+                print("No lifecycle alerts available.")
+                continue
+
+            show_lifecycle_alerts()
+
+            try:
+                index = int(input("Select alert number: ").strip()) - 1
+                alert = MONITORING_LIFECYCLE_ALERTS[index]
+            except (ValueError, IndexError):
+                print("Invalid alert selection.")
+                continue
+
+            result = acknowledge_alert(alert)
+
+            if result.get("success"):
+                MONITORING_LIFECYCLE_ALERTS[index] = result
+
+            print("\nAcknowledgement Result:")
+            print(result)
+
+        elif choice == "3":
+            if not MONITORING_LIFECYCLE_ALERTS:
+                print("No lifecycle alerts available.")
+                continue
+
+            show_lifecycle_alerts()
+
+            try:
+                index = int(input("Select alert number: ").strip()) - 1
+                alert = MONITORING_LIFECYCLE_ALERTS[index]
+            except (ValueError, IndexError):
+                print("Invalid alert selection.")
+                continue
+
+            result = resolve_alert(alert)
+
+            if result.get("success"):
+                MONITORING_LIFECYCLE_ALERTS[index] = result
+
+            print("\nResolution Result:")
+            print(result)
+
+        elif choice == "4":
+            show_lifecycle_alerts()
+
+        elif choice == "0":
+            break
+
+        else:
+            print("Invalid choice. Please try again.")
+
+
+def show_lifecycle_alerts():
+    print("\n--- Lifecycle Alerts ---")
+
+    if not MONITORING_LIFECYCLE_ALERTS:
+        print("No alerts available.")
+        return
+
+    for index, alert in enumerate(MONITORING_LIFECYCLE_ALERTS, start=1):
+        print(f"\nAlert #{index}")
+        print(alert)
+
+
+def run_monitoring_report():
+    print("\n--- Monitoring Report ---")
+
+    target = input("Report Target: ").strip()
+
+    report = create_monitoring_report(
+        target,
+        MONITORING_METRICS,
+        MONITORING_EVENTS,
+        MONITORING_ALERTS
+    )
+
+    print("\nMonitoring Report:")
+    print(report)
+
+
+def run_historical_state():
+    while True:
+        print("\n--- Historical State & Trend ---")
+        print("1. Record Metric")
+        print("2. View History")
+        print("3. Analyze Trend")
+        print("0. Back")
+
+        choice = input("Enter your choice: ").strip()
+
+        if choice == "1":
+            target = input("Target: ").strip()
+            metric = input("Metric: ").strip()
+
+            value = input("Value: ").strip()
+
+            result = record_metric(
+                MONITORING_HISTORY,
+                target,
+                metric,
+                value
+            )
+
+            print("\nHistorical Record:")
+            print(result)
+
+        elif choice == "2":
+            target = input(
+                "Target (leave blank for all): "
+            ).strip()
+
+            metric = input(
+                "Metric (leave blank for all): "
+            ).strip()
+
+            result = get_history(
+                MONITORING_HISTORY,
+                target if target else None,
+                metric if metric else None
+            )
+
+            print("\nHistory:")
+            print(result)
+
+        elif choice == "3":
+            target = input("Target: ").strip()
+            metric = input("Metric: ").strip()
+
+            result = analyze_trend(
+                MONITORING_HISTORY,
+                target,
+                metric
+            )
+
+            print("\nTrend Analysis:")
+            print(result)
+
+        elif choice == "0":
+            break
+
+        else:
+            print("Invalid choice. Please try again.")
 
 
 if __name__ == "__main__":
