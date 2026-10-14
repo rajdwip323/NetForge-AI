@@ -37,6 +37,8 @@ def collect_troubleshooting_evidence(
         result["error"] = "Evidence target cannot be empty"
         return result
 
+    target = target.strip()
+
     if monitoring_results is None:
         monitoring_results = []
 
