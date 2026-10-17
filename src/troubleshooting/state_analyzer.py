@@ -86,7 +86,7 @@ def analyze_troubleshooting_state(target, collected_evidence):
                 )
 
         elif source == "event":
-            event_type = str(item.get("event_type", "")).strip().lower()
+            event_type = str(item.get("event_type", item.get("type", ""))).strip().lower()
             severity = str(item.get("severity", "")).strip().lower()
 
             if event_type in adverse_events:
