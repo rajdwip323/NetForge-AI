@@ -161,12 +161,12 @@ def collect_troubleshooting_evidence(
             )
             return result
 
-        if item["target"] != target:
+        if not isinstance(item["target"], str) or item["target"].strip() != target:
             continue
 
         result["evidence"].append({
             "source": "event",
-            "target": item["target"],
+            "target": target,
             "type": item["event_type"],
             "severity": item["severity"],
             "message": item["message"],
