@@ -47,6 +47,7 @@ impact = {
     "affected_targets": [],
 }
 
+
 def recommend(**overrides):
     args = {
         "target": target,
@@ -56,6 +57,7 @@ def recommend(**overrides):
         "impact_result": impact,
     }
     args.update(overrides)
+
     return recommend_troubleshooting_fix(**args)
 
 
@@ -78,12 +80,22 @@ cases = [
     (
         "unknown root cause does not create corrective fix",
         lambda: (
-            all(
+            recommend(
+                root_cause_result={
+                    **root_cause,
+                    "status": "inconclusive",
+                }
+            )["status"]
+            == "diagnostic_recommendations_available"
+            and all(
                 item["type"] == "diagnostic"
-                for item in recommend()["recommendations"]
+                for item in recommend(
+                    root_cause_result={
+                        **root_cause,
+                        "status": "inconclusive",
+                    }
+                )["recommendations"]
             )
-            and recommend()["root_cause_result"]
-            if False else True
         ),
     ),
     (
@@ -117,6 +129,7 @@ cases = [
     ),
 ]
 
+
 passed = 0
 
 for name, check in cases:
@@ -127,6 +140,7 @@ for name, check in cases:
         print(f"{name}: ERROR - {exc}")
 
     print(f"{name}: {'PASS' if ok else 'FAIL'}")
+
     if ok:
         passed += 1
 
@@ -134,14 +148,3 @@ print(f"\n{passed}/{len(cases)} functional tests passed")
 
 if passed != len(cases):
     sys.exit(1)
-(
-    "unknown root cause does not create corrective fix",
-    lambda: (
-        recommend()["status"]
-        == "diagnostic_recommendations_available"
-        and all(
-            item["type"] == "diagnostic"
-            for item in recommend()["recommendations"]
-        )
-    ),
-),
