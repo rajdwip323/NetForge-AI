@@ -1,4 +1,3 @@
-
 """
 NETFORGE-AI
 Phase 7.10.1 - Deployment Foundation & Data Contracts
@@ -227,13 +226,20 @@ def build_deployment_result(
     """
     Build a standardized deployment execution result.
 
-    success=True means all mock actions completed successfully.
+    Consistency:
+        - completed cannot contain failed actions.
+        - partially_failed requires applied and failed actions.
+        - success is determined by deployment status.
+        - execution is separate from verification.
 
-    executed=True means mock execution occurred.
-    It does NOT mean a real device was modified.
-
-    Verification remains an independent lifecycle stage.
+    Safety:
+        - Mock execution only.
+        - No real device execution.
     """
+
+    # --------------------------------------------------------
+    # BASIC INPUT VALIDATION
+    # --------------------------------------------------------
 
     _require_non_empty_string(
         deployment_id, "deployment_id"
@@ -245,6 +251,10 @@ def build_deployment_result(
 
     if verification_status not in VERIFICATION_STATUSES:
         raise ValueError("invalid verification status")
+
+    # --------------------------------------------------------
+    # ACTION COUNT VALIDATION
+    # --------------------------------------------------------
 
     if (
         not isinstance(actions_applied, int)
@@ -264,8 +274,32 @@ def build_deployment_result(
             "actions_failed must be a non-negative integer"
         )
 
+    # --------------------------------------------------------
+    # DEPLOYMENT STATUS CONSISTENCY
+    # --------------------------------------------------------
+
+    if status == "completed" and actions_failed > 0:
+        raise ValueError(
+            "completed deployment cannot contain failed actions"
+        )
+
+    if status == "partially_failed":
+        if actions_applied == 0 or actions_failed == 0:
+            raise ValueError(
+                "partially_failed deployment requires "
+                "both applied and failed actions"
+            )
+
+    # --------------------------------------------------------
+    # ERROR VALIDATION
+    # --------------------------------------------------------
+
     if error is not None and not isinstance(error, str):
         raise ValueError("error must be a string or None")
+
+    # --------------------------------------------------------
+    # EXECUTION AND SUCCESS DETERMINATION
+    # --------------------------------------------------------
 
     executed = status in (
         "completed",
@@ -274,6 +308,10 @@ def build_deployment_result(
     )
 
     success = status == "completed"
+
+    # --------------------------------------------------------
+    # STANDARDIZED DEPLOYMENT RESULT
+    # --------------------------------------------------------
 
     return {
         "schema_version": DEPLOYMENT_SCHEMA_VERSION,
